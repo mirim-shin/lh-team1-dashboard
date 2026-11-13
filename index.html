@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.3</title>
+<title>1팀 체납관리 홈 ver.4</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
 :root{
@@ -173,6 +173,8 @@ code{background:var(--line2);border-radius:5px;padding:1px 5px;font-size:12px}
 .dt.d0{width:9px;height:2px;border-radius:1px;background:var(--line)}
 td.dc,th.dc{text-align:center;padding-left:4px;padding-right:4px}
 th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-width:56px;font-size:10.5px}
+/* ver.4: 세대 목록 요약(ver.2 모양) · 상세(ver.3 모양) 전환 */
+#v-list.list-sum .det-only{display:none}
 </style>
 </head>
 <body>
@@ -262,17 +264,18 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
       </section>
 
       <!-- LIST -->
-      <section class="view" id="v-list">
+      <section class="view list-sum" id="v-list">
         <div class="card">
           <div class="tbar">
+            <div class="seg" id="tMode" role="group" aria-label="목록 보기"><button type="button" data-m="sum" class="on" title="기본 열만 보기 (ver.2 모양)">요약</button><button type="button" data-m="det" title="세대별 9단계 조치 진행까지 보기 (ver.3 모양)">상세</button></div>
             <input id="q" type="search" placeholder="계약번호 끝 3자리 · 지자체 · 조치 검색" style="min-width:240px">
             <select id="tCls"><option value="">최종분류 전체</option></select>
             <select id="tState"><option value="">관리 상태 전체</option></select>
-            <select id="tTerm"><option value="">체납기간 전체</option><option value="0">3개월 미만</option><option value="1">3~5개월 (단기)</option><option value="2">6~11개월 (중기)</option><option value="3">12개월 이상 (장기)</option></select>
-            <select id="tCur"><option value="">현재 단계 전체</option></select>
+            <select id="tTerm" class="det-only"><option value="">체납기간 전체</option><option value="0">3개월 미만</option><option value="1">3~5개월 (단기)</option><option value="2">6~11개월 (중기)</option><option value="3">12개월 이상 (장기)</option></select>
+            <select id="tCur" class="det-only"><option value="">현재 단계 전체</option></select>
             <span class="cnt" id="tCnt"></span>
           </div>
-          <div class="legend"><span><i class="dt d2"></i>완료</span><span><i class="dt d1"></i>대상(아직 안 함)</span><span><i class="dt d0"></i>해당 없음</span><span style="color:var(--ink3)">· 오른쪽 조치 진행 열은 김태경 님 A01 통합데이터 기준</span></div>
+          <div class="legend det-only"><span><i class="dt d2"></i>완료</span><span><i class="dt d1"></i>대상(아직 안 함)</span><span><i class="dt d0"></i>해당 없음</span><span style="color:var(--ink3)">· 오른쪽 조치 진행 열은 김태경 님 A01 통합데이터 기준</span></div>
           <div class="tw"><table id="tbList"></table></div>
           <button class="more" id="more" hidden>더 보기</button>
         </div>
@@ -413,6 +416,15 @@ function renderStatic() {
 let listPage = 1, sortK = 4, sortD = -1;
 /* ver.2: 도표에서 넘어온 추가 조건(다음 할 일·체납기간 등). 목록 위 칩의 ×로 지움 */
 let LX = null;
+/* ver.4: 목록 보기 방식 — 'sum' 요약(ver.2 모양) / 'det' 상세(ver.3 모양) */
+let MODE = 'sum';
+function setMode(m) {
+  MODE = m === 'det' ? 'det' : 'sum';
+  [...$('#tMode').children].forEach(b => b.classList.toggle('on', b.dataset.m === MODE));
+  $('#v-list').classList.toggle('list-sum', MODE === 'sum');
+  if (MODE === 'sum') { $('#tTerm').value = ''; $('#tCur').value = ''; if (sortK === 13) { sortK = 4; sortD = -1; } }
+  listPage = 1; renderList();
+}
 function goList(o) {
   o = o || {};
   $('#q').value = ''; $('#tTerm').value = ''; $('#tCur').value = ''; $('#tCls').value = o.cls || ''; $('#tState').value = o.state == null ? '' : String(o.state); LX = o.lx || null;
@@ -423,16 +435,18 @@ function goList(o) {
 const COLS = [['계약번호', 0], ['지자체', 1], ['구분', 2], ['체납개월', 3, 1], ['체납액(원)', 4, 1], ['최종분류', 5], ['관리 상태', 6], ['다음 할 일', 7], ['마지막 조치일', 8], ['진행 단계', 13, 1]];
 function renderList() {
   const q = $('#q').value.trim(), c = $('#tCls').value, s = $('#tState').value, tt = $('#tTerm').value, tc = $('#tCur').value;
+  const det = MODE === 'det', LCOLS = det ? COLS : COLS.filter(x => x[1] !== 13);
   let R = D.hh.filter(r => pass(r[1], r[2]) && (!c || r[5] === c) && (s === '' || r[6] === +s) && (!LX || LX.fn(r)) && (tt === '' || TERM[+tt][1](r)) && (!tc || r[9] === tc) && (!q || (r[0] + r[1] + r[5] + r[7]).includes(q)));
   R.sort((a, b) => (a[sortK] > b[sortK] ? 1 : a[sortK] < b[sortK] ? -1 : 0) * sortD);
   $('#tCnt').innerHTML = `${fmt(R.length)}세대` + (LX ? `<span class="xchip">${LX.label}<button type="button" id="xclr" title="이 조건 지우기">×</button></span>` : '');
   const show = R.slice(0, listPage * 30);
-  $('#tbList').innerHTML = '<tr>' + COLS.map(([n, k, r]) => `<th class="s ${r ? 'r' : ''}" data-k="${k}">${n}${sortK === k ? (sortD > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('') + SHORT9.map(n => `<th class="dc">${n}</th>`).join('') + '</tr>' + show.map(r => `<tr><td>${r[0]}</td><td>${r[1].replace(/^전세\((.+)\)$/, '$1')}</td><td>${r[2]}</td><td class="r">${r[3]}</td><td class="r">${fmt(r[4])}</td><td>${r[5]}</td><td><span class="chip"><i style="background:var(${STATES[r[6]][1]})"></i>${STATES[r[6]][0]}</span></td><td>${r[7]}</td><td>${r[8] || '<span style="color:var(--ink3)">기록 없음</span>'}</td><td class="r">${r[10] ? r[13] : '-'}</td>${dots(r)}</tr>`).join('');
+  $('#tbList').innerHTML = '<tr>' + LCOLS.map(([n, k, r]) => `<th class="s ${r ? 'r' : ''}" data-k="${k}">${n}${sortK === k ? (sortD > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('') + (det ? SHORT9.map(n => `<th class="dc">${n}</th>`).join('') : '') + '</tr>' + show.map(r => `<tr><td>${r[0]}</td><td>${r[1].replace(/^전세\((.+)\)$/, '$1')}</td><td>${r[2]}</td><td class="r">${r[3]}</td><td class="r">${fmt(r[4])}</td><td>${r[5]}</td><td><span class="chip"><i style="background:var(${STATES[r[6]][1]})"></i>${STATES[r[6]][0]}</span></td><td>${r[7]}</td><td>${r[8] || '<span style="color:var(--ink3)">기록 없음</span>'}</td>${det ? `<td class="r">${r[10] ? r[13] : '-'}</td>${dots(r)}` : ''}</tr>`).join('');
   $('#more').hidden = show.length >= R.length; $('#more').textContent = `더 보기 (${fmt(R.length - show.length)}세대 남음)`;
 }
 $('#tbList').addEventListener('click', e => { const th = e.target.closest('th.s'); if (!th) return; const k = +th.dataset.k; sortD = sortK === k ? -sortD : ((k >= 3 && k <= 4) || k === 13 ? -1 : 1); sortK = k; renderList(); });
 ['#q', '#tCls', '#tState', '#tTerm', '#tCur'].forEach(s => $(s).addEventListener('input', () => { listPage = 1; renderList(); }));
 $('#more').addEventListener('click', () => { listPage++; renderList(); });
+$('#tMode').addEventListener('click', e => { const b = e.target.closest('button[data-m]'); if (b && b.dataset.m !== MODE) setMode(b.dataset.m); });
 $('#tCnt').addEventListener('click', e => { if (e.target.id === 'xclr') { LX = null; listPage = 1; renderList(); } });
 $('#kpis').addEventListener('click', e => { const k = e.target.closest('.kpi.clk'); if (k) goList(KGO[+k.dataset.i]); });
 $('#kpis2').addEventListener('click', e => { const k = e.target.closest('.kpi.clk'); if (k) goList(KGO2[+k.dataset.j]); });
