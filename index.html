@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.8</title>
+<title>1팀 체납관리 홈 ver.9</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -48,6 +48,18 @@ a{color:inherit}
 .nav a:hover{background:rgba(255,255,255,.05)}
 .nav a.on{background:var(--side-on);color:#fff}
 .nav a.off{opacity:.42}
+.warnbar{border:1px solid var(--s-hold);background:color-mix(in srgb,var(--s-hold) 12%,var(--surface));border-radius:12px;padding:10px 16px;margin:0 0 14px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.warnbar b{color:var(--ink)}.warnbar a{font-weight:600}
+.chk h4{margin:14px 0 6px;font-size:13px}.chk ul{margin:0;padding-left:18px;font-size:12.5px;line-height:1.7}.chk li small{color:var(--ink3)}
+.chk table{border-collapse:collapse;width:100%;font-size:12px;margin-top:4px}.chk th,.chk td{border-bottom:1px solid var(--line2);padding:4px 8px;text-align:left;vertical-align:top}.chk th{color:var(--ink2);font-weight:600}
+.chk .tw{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:6px}
+.chk .okline{color:var(--s-ok);font-size:12.5px}
+#chkCard{scroll-margin-top:84px}
+.dmsg.warn{color:var(--s-hold);font-weight:600}
+.chooser{margin-top:12px;border:1px solid var(--s-hold);border-radius:10px;padding:10px 12px}.chooser h4{margin-top:0}
+.chooser select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 6px;max-width:190px}
+.chooser tr.bad td{background:color-mix(in srgb,var(--s-miss) 9%,transparent)}
+.chooser button:disabled{opacity:.45;cursor:not-allowed}
 .gate{border:1px solid var(--s-hold);background:color-mix(in srgb,var(--s-hold) 8%,var(--surface));border-radius:12px;padding:12px 16px;margin:0 0 14px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
 .gate b{font-size:14.5px}.gate p{margin:0;color:var(--ink2);flex:1 1 320px}
 .gate button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:600}
@@ -224,6 +236,7 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
     </div>
 
     <div class="page">
+      <div class="warnbar" id="warnBar" hidden></div>
       <!-- HOME -->
       <section class="view" id="v-home">
         <div class="hero"><div class="eye"><i></i><span id="heroEye">전세임대 체납관리 · 2026년 10월</span></div><h2>이번 달 체납세대,<br><em>어디까지 챙겼을까요?</em></h2><p>흩어진 체납 자료를 하나로 합치고, 조치가 필요한 세대를 골라, 월 결산 보고까지 잇는 1팀의 AI Agent 흐름을 한 화면에 모았어요.</p></div>
@@ -311,9 +324,10 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
           <div class="card"><h3>① 원본 Excel 9개 넣기</h3>
             <p class="src">wise에서 받은 체납집계표 · 납부최고서 1·2차 · 가옥명도최고 · 분과심의 · 소송통고 1·2차 · 제소자 · 소송정보. 이 페이지가 통합(A01)과 분류(A02~A04)까지 합니다 — 분류도구 ver.6과 같은 규칙</p>
             <div class="dline"><label for="dBase">기준일(월말 결산일)</label><input type="date" id="dBase"><span style="color:var(--ink3)">판단 기준값은 「② 대상자 분류」 화면의 값 사용 · <code>체납관리_기준값.json</code>을 같이 넣으면 그 값 사용</span></div>
-            <div class="drop" id="dropB">원본 파일들을 여기에 끌어다 놓거나 눌러서 선택<br><small>파일 이름에 "오류"·"테스트"가 들어간 파일은 제외 · 체납집계표는 꼭 필요</small></div>
+            <div class="drop" id="dropB">원본 파일들을 여기에 끌어다 놓거나 눌러서 선택<br><small>파일 이름에 체납집계표·납부최고서·가옥명도최고·분과심의·소송통고·제소자·소송정보 중 한 단어만 들어 있으면 인식 · 같은 종류가 여러 개거나 애매하면 직접 고름 · "오류"·"테스트"가 들어간 파일은 제외 · 체납집계표는 꼭 필요</small></div>
             <input type="file" id="pickB" accept=".xlsx,.json" multiple hidden>
             <div class="dmsg" id="msgB"></div>
+            <div class="chk chooser" id="chooser" hidden></div>
           </div>
           <div class="card"><h3>② 통합 실행 결과 2개 넣기 <span class="srcbadge">권장</span></h3>
             <p class="src"><code>팀원/취합/체납관리_통합실행/체납관리_실행_ver.2.bat</code>이 <code>결과/&lt;연월&gt;/</code>에 만든 두 파일 (ver.2 결과면 조치 진행 점도 신미림 분류 규칙 기준)</p>
@@ -323,6 +337,9 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
             <div class="dmsg" id="msgA"></div>
           </div>
         </div>
+        <div class="card mt chk" id="chkCard" hidden><h3>넣은 데이터 점검 <span class="srcbadge">ver.9</span></h3>
+          <p class="src">빠진 파일 · 같은 종류 중복 · 쓰지 못한 파일 · 형식이 이상한 값을 모았습니다. 화면의 숫자는 아래 내용을 감안해서 보세요.</p>
+          <div id="chkBody"></div></div>
         <div class="card mt"><h3>지금 화면에 쓰인 데이터</h3><div class="dinfo" id="dInfo"></div>
           <button class="more" id="dReset" type="button">처음으로 (넣은 데이터 지우기)</button></div>
       </section>
@@ -543,6 +560,34 @@ const KINDS = [
   {key:'S2', label:'8. 소송통고 2차',   test:n=>/소송통고\s*2차/.test(n)},
   {key:'SI', label:'9. 소송정보',       test:n=>/소송정보/.test(n)},
 ];
+// ver.9: 파일 이름이 정확히 같지 않아도 종류 단어(체납집계표·납부최고서·가옥명도최고·분과심의·소송통고·제소자·소송정보)가
+//        들어 있으면 인식한다. 띄어쓰기·밑줄·괄호·점은 무시. 납부최고서·소송통고에 1차/2차가 없으면 후보 2개 → 사용자가 고름
+function kindsOf(name){
+  const n = String(name).normalize('NFC').replace(/\.xlsx$/i,'').replace(/[\s_\-()[\]{}.,·~]/g,'');
+  const one = /(1|일)차/.test(n), two = /(2|이)차/.test(n);
+  const pair = (a,b) => one && !two ? [a] : two && !one ? [b] : [a,b];
+  const out = [];
+  if (n.includes('체납집계표')) out.push('J');
+  if (n.includes('납부최고')) out.push(...pair('P1','P2'));
+  if (n.includes('가옥명도')) out.push('GA');
+  if (n.includes('분과심의')) out.push('BG');
+  if (n.includes('소송통고')) out.push(...pair('S1','S2'));
+  if (n.includes('제소자')) out.push('JE');
+  if (n.includes('소송정보')) out.push('SI');
+  return out;
+}
+// 넣은 파일을 종류별로 나눠 보고, 사용자가 골라야 하는지(같은 종류 여러 개 · 종류가 애매함 · 체납집계표 없음) 알려 준다
+function plan(items){
+  const skipped = [], rows = [];
+  for (const {name} of items){
+    if (/오류|테스트/.test(String(name).normalize('NFC'))) { skipped.push(name); continue; }
+    rows.push({ name, cands: kindsOf(name) });
+  }
+  const byKind = {};
+  rows.forEach(r => { if (r.cands.length === 1) (byKind[r.cands[0]] = byKind[r.cands[0]] || []).push(r.name); });
+  const need = rows.some(r => r.cands.length > 1) || Object.values(byKind).some(a => a.length > 1) || (!byKind.J && rows.length > 0);
+  return { skipped, rows, need };
+}
 
 // ───────── 공통 유틸 ─────────
 const norm = s => s==null ? '' : String(s).replace(/\s+/g,'');
@@ -558,6 +603,21 @@ function toDate(v){
 }
 const ymd = d => d ? d.toISOString().slice(0,10) : '';
 const addMonths = (d,k) => { const x = new Date(d); const day = x.getUTCDate(); x.setUTCDate(1); x.setUTCMonth(x.getUTCMonth()+k); const last = new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth()+1, 0)).getUTCDate(); x.setUTCDate(Math.min(day,last)); return x; };
+// ver.9: 형식 점검 — 값이 있는데 날짜·숫자로 읽히지 않으면 「데이터 확인 사항」에 남긴다 (계산 방식은 ver.8과 같음)
+const CHK = { log: null, file: '', no: '' };
+function badVal(what, v, why){ if (CHK.log) CHK.log.push({구분: why, 파일: CHK.file, 계약번호: CHK.no, 내용: `${what}: "${String(v).slice(0,40)}"`}); }
+function dateChk(v, what){
+  const d = toDate(v);
+  if (v!=null && v!=='' && !d) badVal(what, v, '날짜 형식 오류(없는 것으로 계산)');
+  else if (d && (d.getUTCFullYear()<1990 || d.getUTCFullYear()>2100)) badVal(what, v, '날짜 확인 필요(1990~2100년 밖)');
+  return d;
+}
+function numChk(v, what, emptyMsg){
+  const n = num(v);
+  if (v!=null && v!=='' && n==null) badVal(what, v, '숫자 형식 오류(0으로 계산)');
+  else if (emptyMsg && (v==null || v==='')) badVal(what, '', emptyMsg);
+  return n;
+}
 
 // 머리글이 2줄(그룹 / 세부)인 시트: 그룹명을 오른쪽으로 채워 "그룹|세부" 이름을 만든다
 function headerTable(rows, maxScan=8){
@@ -608,6 +668,8 @@ function mainSheet(key, prefer){
 
 function integrate(){
   const log = []; // 데이터 확인 사항
+  const sheetIssues = []; // ver.9: 쓰지 못한 파일 · 빠진 열
+  CHK.log = log;
   const J = mainSheet('J');
   if (!J) throw new Error('체납집계표에서 "계약번호" 머리글을 찾지 못했습니다.');
   const c = J.col;
@@ -618,12 +680,16 @@ function integrate(){
   for (const r of J.data){
     const no = str(r[c('계약번호')]);
     if (!no) { log.push({구분:'계약번호 없음', 파일:'체납집계표', 계약번호:'', 내용:'계약자 '+str(r[c('계약자')])}); continue; }
+    CHK.file = '1. 체납집계표'; CHK.no = no;
+    if (recs.has(no)) log.push({구분:'계약번호 중복(뒤 행 적용)', 파일:'1. 체납집계표', 계약번호:no, 내용:'체납집계표에 같은 계약번호가 2번 이상 있음'});
+    const 구분값 = str(r[c('계약/해약구분')]);
+    if (구분값!=='계약' && 구분값!=='해약') badVal('계약/해약구분', 구분값, '계약/해약 구분 값 확인 필요');
     recs.set(no, {
       계약번호: no, 계약자: str(r[c('계약자')]), 지자체명: str(r[c('지자체명')]),
-      구분: str(r[c('계약/해약구분')]), 개월: num(r[c('체납개월건수')]) ?? 0,
-      임대료: num(r[c('현재월임대료')]) ?? 0, 납부3: num(r[c('최근3개월납부금액')]) ?? 0,
-      총합계: num(r[c('총합계')]) ?? 0, 부담금: num(r[c('입주자부담금')]) ?? 0,
-      최근납부일: toDate(r[c('최근납부일')]),
+      구분: 구분값, 개월: numChk(r[c('체납개월건수')], '체납개월건수', '값 없음(0개월로 계산)') ?? 0,
+      임대료: numChk(r[c('현재월임대료')], '현재월임대료') ?? 0, 납부3: numChk(r[c('최근3개월납부금액')], '최근3개월납부금액') ?? 0,
+      총합계: numChk(r[c('총합계')], '총합계') ?? 0, 부담금: numChk(r[c('입주자부담금')], '입주자부담금') ?? 0,
+      최근납부일: dateChk(r[c('최근납부일')], '최근납부일'),
       dates: [], done: {}, bg: null, si: null, pjDates: [],
     });
     const rec = recs.get(no);
@@ -642,9 +708,14 @@ function integrate(){
   }
 
   const fileLabel = k => KINDS.find(x=>x.key===k).label;
+  // ver.9: 각 파일에서 완료 판단에 쓰는 열. 없으면 그 단계가 '완료 아님'으로만 계산되므로 경고한다
+  const WANT = { P1:[['납부최고단계']], P2:[['납부최고단계']], GA:[['상태','가옥명도']], BG:[['구분']], JE:[['제소의뢰일','제소의뢰']], SI:[['사건번호','본안소송'],['판결일자','판결']] };
   const attach = (key, fn) => {
+    if (!state.files[key]) return 0;
     const s = mainSheet(key, key==='BG' ? '분과심의대상세대' : null);
-    if (!s) return 0;
+    if (!s) { sheetIssues.push({파일: fileLabel(key), 이름: state.files[key].name, 내용: '"계약번호" 머리글이 있는 시트를 찾지 못해 이 파일을 쓰지 못함 (이 단계 기록 없음으로 계산)'}); return 0; }
+    const lack = (WANT[key]||[]).filter(([a,b]) => s.col(a,b)<0).map(([a,b]) => b ? `${b}|${a}` : a);
+    if (lack.length) sheetIssues.push({파일: fileLabel(key), 이름: state.files[key].name, 내용: `완료 판단에 쓰는 열이 없음: ${lack.join(', ')} (이 단계는 완료 아님으로 계산될 수 있음)`});
     const ci = s.col('계약번호');
     let n = 0;
     for (const r of s.data){
@@ -652,6 +723,7 @@ function integrate(){
       if (!no) { log.push({구분:'계약번호 없음', 파일:fileLabel(key), 계약번호:'', 내용:'계약자 '+str(r[s.col('계약자')])}); continue; }
       const rec = recs.get(no);
       if (!rec) { log.push({구분:'체납집계표에 없음', 파일:fileLabel(key), 계약번호:no, 내용:'매핑 실패'}); continue; }
+      CHK.file = fileLabel(key); CHK.no = no;
       fn(rec, r, s.col); n++; (rec.inFile = rec.inFile || {})[key] = true;
       // 값 충돌 확인 (체납집계표 기준으로 처리)
       const mc = s.col('체납개월수'); const v = mc>=0 ? num(r[mc]) : null;
@@ -708,9 +780,10 @@ function integrate(){
     if (!inFiles) log.push({구분:'소송 이력이 체납집계표에만 있음(집계표 기준 적용)', 파일:'체납집계표', 계약번호:rec.계약번호,
       내용:`제소의뢰 ${L.JE?'있음':'없음'} · 본안소송 ${L.SI?'있음':'없음'} · 판결 ${L.PJ?'있음(판결결과 없음)':'없음'}`});
   }
-  return {recs, log, counts};
+  CHK.log = null;
+  return {recs, log, counts, sheetIssues};
 }
-function pushDate(rec, label, v){ const d = toDate(v); if (d) rec.dates.push({label, d}); }
+function pushDate(rec, label, v){ const d = dateChk(v, label + ' 날짜'); if (d) rec.dates.push({label, d}); }
 
 // ───────── A02~A04 분류·예외·조치 ─────────
 const ORDER = ['강제집행필요 세대','소송유예자','제소대상자','생활안정지원대상자','분과심의 보류 대상자','분과심의 대상자','장기체납자','중기체납자','단기체납자','독려대상(3개월 미만)'];
@@ -814,21 +887,26 @@ function classify(rec, baseDate, S){
     누락여부: 누락, 비고: notes.join(' / '),
   };
 }
-function run(items, baseDate, S){
-  state.files = {}; const skipped = [], unknown = [];
+// assign: { 파일이름: 종류 key 또는 '' (사용 안 함) } — 사용자가 「파일 종류 확인」에서 고른 결과. 없으면 이름으로 정함
+function run(items, baseDate, S, assign){
+  // ver.7: "오류"뿐 아니라 "테스트" 파일도 뺀다 (2026-11-13 김태경 님이 (오류) 파일 이름을 (테스트)로 바꿈)
+  state.files = {}; const P = plan(items), skipped = P.skipped, unknown = [], notUsed = [];
   for (const {name, wb} of items){
-    // ver.7: "오류"뿐 아니라 "테스트" 파일도 뺀다 (2026-11-13 김태경 님이 (오류) 파일 이름을 (테스트)로 바꿈)
-    if (/오류|테스트/.test(name.normalize('NFC'))) { skipped.push(name); continue; }
-    const kind = KINDS.find(k => k.test(name.normalize('NFC')));
-    if (!kind) { unknown.push(name); continue; }
-    state.files[kind.key] = {name, wb};
+    if (skipped.includes(name)) continue;
+    const r = P.rows.find(x => x.name === name);
+    const key = assign ? (assign[name] || '') : (r && r.cands.length === 1 ? r.cands[0] : '');
+    if (!key) { (assign && r && r.cands.length ? notUsed : unknown).push(name); continue; }
+    // ver.9: 같은 종류는 하나만 쓴다 — 여러 개면 임의로 고르지 않고 사용자에게 고르게 한다 (화면의 「파일 종류 확인」)
+    if (state.files[key]) throw new Error(`${KINDS.find(k => k.key === key).label} 파일이 2개 이상입니다. 「파일 종류 확인」에서 하나만 골라 주세요.`);
+    state.files[key] = {name, wb};
   }
-  if (!state.files.J) throw new Error('체납집계표 파일이 없습니다. 파일 이름에 "체납집계표"가 들어간 파일을 함께 넣어 주세요.');
-  const {recs, log, counts} = integrate();
+  if (!state.files.J) throw new Error('체납집계표 파일이 없습니다. 파일 이름에 "체납집계표"가 들어간 파일을 함께 넣어 주세요.' + (unknown.length ? ` (종류를 알 수 없어 뺀 파일: ${unknown.join(', ')})` : ''));
+  const missing = KINDS.filter(k => !state.files[k.key]).map(k => k.label);
+  const {recs, log, counts, sheetIssues} = integrate();
   const out = [...recs.values()].map(rec => ({ rec, row: classify(rec, baseDate, S) }));
-  return { out, log, counts, recsSize: recs.size, files: Object.fromEntries(Object.entries(state.files).map(([k, v]) => [k, v.name])), skipped, unknown, KINDS };
+  return { out, log, counts, recsSize: recs.size, files: Object.fromEntries(Object.entries(state.files).map(([k, v]) => [k, v.name])), skipped, unknown, KINDS, notUsed, missing, sheetIssues };
 }
-return { run, toDate, ymd };
+return { run, plan, kindsOf, KINDS, toDate, ymd };
 })();
 /* ===== ver.5 데이터 넣기: 화면 쪽 (넣은 Excel → 대시보드 데이터 D로 바꿔 다시 그림) ===== */
 const escH = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -855,6 +933,68 @@ function renderDataInfo() {
     if (i.settingsFile) rows.push(['판단 기준값 파일', escH(i.settingsFile)]);
   }
   $('#dInfo').innerHTML = rows.map(r => `<div>${r[0]}</div><div>${r[1]}</div>`).join('');
+  renderCheck();
+}
+
+/* ===== ver.9: 넣은 데이터 점검 (빠진 파일 · 중복 · 쓰지 못한 파일 · 형식 오류 · 데이터 확인 사항 목록/Excel) ===== */
+const MISS_EFFECT = {
+  '2. 납부최고서 1차': '1차 납부최고를 한 세대도 "안 함"으로 보고, 누락 의심이 실제보다 많이 나올 수 있음',
+  '3. 납부최고서 2차': '2차 납부최고를 한 세대도 "안 함"으로 봄',
+  '4. 가옥명도최고': '가옥명도최고 승인 세대도 "안 함"으로 봐서 분과심의 이후 단계로 못 넘어감',
+  '5. 분과심의': '분과심의 결과(소송대상자·생활안정지원·소송유예)가 없어 제소대상자가 적게 나올 수 있음',
+  '6. 소송통고 1차': '소송통고 1차를 "안 함"으로 봄',
+  '7. 제소자': '제소를 "안 함"으로 봄',
+  '8. 소송통고 2차': '소송통고 2차를 "안 함"으로 봄',
+  '9. 소송정보': '사건번호·판결 기록이 없어 강제집행필요 세대가 적게 나올 수 있음 (체납집계표 소송관리 기록만 사용)',
+};
+const isFmt = g => /형식 오류|확인 필요|값 없음|구분 값/.test(g);
+function checkSummary(i) {
+  if (!i || i.kind === 'default') return null;
+  const log = i.log || [], fmtN = log.filter(l => isFmt(l.구분)).length;
+  const s = { missing: (i.missing || []).length, dups: 0, unknown: (i.unknown || []).length, sheet: (i.sheetIssues || []).length, log: log.length, fmt: fmtN, notJoined: i.notJoined || 0 };
+  s.any = s.missing + s.dups + s.unknown + s.sheet + s.fmt + s.notJoined > 0 || log.length > 0;
+  return s;
+}
+const maskName = t => String(t).replace(/계약자 (\S)(\S*)/, (m, a, b) => '계약자 ' + a + '*'.repeat(Math.min(b.length, 3)));
+function renderCheck() {
+  const i = DATA_INFO, s = checkSummary(i), card = $('#chkCard'), bar = $('#warnBar');
+  if (!s) { card.hidden = true; bar.hidden = true; return; }
+  card.hidden = false;
+  const h = [];
+  if (i.kind === 'raw') {
+    if (s.missing) h.push(`<h4>⚠ 빠진 원본 파일 ${s.missing}종 — 그 단계는 "기록 없음"으로 계산했습니다</h4><ul>${i.missing.map(m => `<li><b>${escH(m)}</b> <small>${escH(MISS_EFFECT[m] || '')}</small></li>`).join('')}</ul>`);
+    if ((i.notUsed || []).length) h.push(`<h4>「파일 종류 확인」에서 사용 안 함으로 고른 파일 ${i.notUsed.length}개</h4><ul>${i.notUsed.map(n => `<li>${escH(n)}</li>`).join('')}</ul>`);
+    if (s.unknown) h.push(`<h4>⚠ 종류를 알 수 없어 뺀 파일 ${s.unknown}개</h4><ul>${i.unknown.map(n => `<li>${escH(n)} <small>${/통합데이터|분류결과/.test(n.normalize('NFC')) ? '통합 실행 결과 파일입니다 — 오른쪽 「② 통합 실행 결과 2개 넣기」에 넣으세요' : '파일 이름에 체납집계표·납부최고서 1차 같은 종류 이름이 있어야 합니다'}</small></li>`).join('')}</ul>`);
+    if (s.sheet) h.push(`<h4>⚠ 쓰지 못했거나 열이 빠진 파일</h4><ul>${i.sheetIssues.map(x => `<li>${escH(x.파일)} <small>(${escH(x.이름)})</small> — ${escH(x.내용)}</li>`).join('')}</ul>`);
+  }
+  if (s.notJoined) h.push(`<h4>⚠ 통합데이터에 없는 세대 ${fmt(s.notJoined)}세대</h4><ul><li><small>분류결과에는 있지만 통합데이터에 없어 체납액·조치 진행 점이 비어 있습니다. 같은 달 두 파일을 넣었는지 확인하세요.</small></li></ul>`);
+  const log = i.log || [];
+  if (log.length) {
+    const by = {}; log.forEach(l => { by[l.구분] = (by[l.구분] || 0) + 1; });
+    h.push(`<h4>데이터 확인 사항 ${fmt(log.length)}건${s.fmt ? ` (형식 문제 ${fmt(s.fmt)}건)` : ''}</h4>
+      <table style="width:auto;min-width:320px"><tr><th>구분</th><th style="text-align:right">건수</th></tr>${Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${isFmt(k) ? '⚠ ' : ''}${escH(k)}</td><td style="text-align:right">${fmt(v)}</td></tr>`).join('')}</table>
+      <div class="tw"><table><tr><th>구분</th><th>파일</th><th>계약번호</th><th>내용</th></tr>${log.slice(0, 300).map(l => `<tr><td>${escH(l.구분)}</td><td>${escH(l.파일)}</td><td>${escH(l.계약번호 ? MASK(l.계약번호) : '')}</td><td>${escH(maskName(l.내용))}</td></tr>`).join('')}</table></div>
+      <p class="src" style="margin-top:6px">${log.length > 300 ? `화면에는 처음 300건만 보입니다. ` : ''}화면의 계약번호·이름은 가렸습니다. 전체 목록(계약번호 포함)은 Excel로 받아 확인하세요 — 파일은 이 컴퓨터에만 저장됩니다.</p>
+      <button class="more" id="chkDl" type="button">데이터 확인 사항 Excel로 받기</button>`);
+  }
+  if (!h.length) h.push('<p class="okline">✓ 빠진 파일·중복·형식 문제가 없습니다.</p>');
+  $('#chkBody').innerHTML = h.join('');
+  const dl = $('#chkDl'); if (dl) dl.addEventListener('click', () => {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(log), '데이터 확인 사항');
+    const etc = [...(i.missing || []).map(m => ({ 구분: '빠진 원본 파일', 내용: m + ' — ' + (MISS_EFFECT[m] || '') })), ...(i.notUsed || []).map(n => ({ 구분: '사용 안 함으로 고른 파일', 내용: n })), ...(i.unknown || []).map(n => ({ 구분: '종류를 몰라 뺀 파일', 내용: n })), ...(i.sheetIssues || []).map(x => ({ 구분: '쓰지 못했거나 열이 빠진 파일', 내용: `${x.파일} (${x.이름}) — ${x.내용}` }))];
+    if (etc.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(etc), '파일 점검');
+    XLSX.writeFile(wb, `체납관리_데이터확인사항_${String(D.base).replace(/-/g, '')}.xlsx`);
+  });
+  const parts = [];
+  if (s.missing) parts.push(`빠진 원본 ${s.missing}종`);
+  if (s.unknown) parts.push(`종류 모를 파일 ${s.unknown}개`);
+  if (s.sheet) parts.push(`쓰지 못한 파일·빠진 열 ${s.sheet}건`);
+  if (s.fmt) parts.push(`형식 문제 ${fmt(s.fmt)}건`);
+  if (s.notJoined) parts.push(`통합데이터에 없는 세대 ${fmt(s.notJoined)}`);
+  bar.hidden = !parts.length;
+  bar.innerHTML = parts.length ? `<b>⚠ 넣은 데이터에 확인할 점이 있습니다</b><span>${parts.join(' · ')}</span><a href="#data" id="warnGo">점검 결과 보기 →</a>` : '';
+  const go = $('#warnGo'); if (go) go.addEventListener('click', e => { e.preventDefault(); if (location.hash !== '#data') location.hash = '#data'; setTimeout(() => card.scrollIntoView({ block: 'start' }), 200); });
 }
 
 function applyData(D2, info) {
@@ -913,16 +1053,24 @@ async function loadResults(fileList) {
 }
 
 /* ① 원본 Excel 9개 → ENGINE(분류도구 ver.6 규칙)으로 통합·분류 */
-async function loadRaw(fileList) {
+async function loadRaw(fileList, assign, cached) {
   needXLSX();
+  $('#chooser').hidden = true;
   const all = [...fileList], json = all.find(f => /\.json$/i.test(f.name));
   const crit = { ...D.crit };
-  if (json) { const o = JSON.parse((await json.text()).replace(/^﻿/, '')); for (const k of Object.keys(crit)) if (o[k] != null && o[k] !== '' && isFinite(+o[k])) crit[k] = +o[k]; }
+  if (json) { let o; try { o = JSON.parse((await json.text()).replace(/^﻿/, '')); } catch (e) { throw new Error(`판단 기준값 파일(${json.name})의 형식이 잘못돼 읽지 못했습니다. 파일을 메모장으로 열어 쉼표·따옴표·괄호를 확인하거나, 이 파일을 빼고 다시 넣어 주세요.`); } for (const k of Object.keys(crit)) if (o[k] != null && o[k] !== '' && isFinite(+o[k])) crit[k] = +o[k]; }
   if (!(crit['단기체납_시작_개월'] < crit['중기체납_시작_개월'] && crit['중기체납_시작_개월'] < crit['장기체납_시작_개월'])) throw new Error('판단 기준값의 체납기간 구간이 맞지 않습니다(단기 < 중기 < 장기).');
   const bv = $('#dBase').value, baseDate = ENGINE.toDate(bv);
   if (!baseDate) throw new Error('기준일(월말 결산일)을 입력해 주세요.');
-  const items = await Promise.all(all.filter(f => /\.xlsx$/i.test(f.name)).map(readWb));
-  const R = ENGINE.run(items, baseDate, crit);
+  const xl = all.filter(f => /\.xlsx$/i.test(f.name));
+  const items = cached || await Promise.all(xl.map(readWb));
+  if (!assign) {
+    const P = ENGINE.plan(items);
+    if (!P.rows.length) throw new Error('쓸 수 있는 원본 Excel(.xlsx)이 없습니다.' + (P.skipped.length ? ` ("오류"·"테스트"가 들어간 파일은 뺍니다: ${P.skipped.join(', ')})` : ''));
+    // ver.9: 같은 종류가 여러 개이거나 종류가 애매하면 임의로 정하지 않고 사용자에게 고르게 한다
+    if (P.need) { showChooser(all, xl, items, P); return 'choose'; }
+  }
+  const R = ENGINE.run(items, baseDate, crit, assign);
   const hh = [], integRows = [];
   for (const { rec, row } of R.out) {
     const pjDone = rec.pjDates.some(d => d <= baseDate) || (rec.pjDates.length === 0 && !!rec.si && /승소|패소|각하|기각/.test(rec.si.판결결과));
@@ -936,7 +1084,60 @@ async function loadRaw(fileList) {
   const files = R.KINDS.filter(k => R.files[k.key]).map(k => { const m = k.key === 'J' ? R.recsSize : (R.counts[k.key] || 0); const f = k.key === 'J' ? fails('체납집계표') : fails(k.label); return [k.key, R.files[k.key].replace(/\.xlsx$/, ''), m + f, m]; });
   const mapFail = R.log.filter(l => l.구분 === '체납집계표에 없음' || l.구분 === '계약번호 없음').length;
   applyData({ base: bv, made: new Date().toLocaleString('ko-KR'), mapFail, integ: integRows, files, hh, prev: {}, flow: [], done: [], prevNext: {}, prevCls: {}, crit, src: '넣은 데이터(원본 Excel)' },
-    { kind: 'raw', files: Object.values(R.files), skipped: R.skipped, unknown: R.unknown, logN: R.log.length, settingsFile: json ? json.name : '' });
+    { kind: 'raw', files: Object.values(R.files), skipped: R.skipped, unknown: R.unknown, logN: R.log.length, settingsFile: json ? json.name : '',
+      log: R.log, notUsed: R.notUsed, missing: R.missing, sheetIssues: R.sheetIssues, chosen: !!assign });
+}
+
+/* ver.9: 「파일 종류 확인」 — 같은 종류 파일이 여러 개이거나, 이름만으로 종류를 정할 수 없을 때 사용자가 고른다 */
+function showChooser(all, xl, items, P) {
+  const box = $('#chooser'), K = ENGINE.KINDS, lab = k => K.find(x => x.key === k).label;
+  const fileOf = n => xl.find(f => f.name === n);
+  const ord = r => r.cands.length ? K.findIndex(k => k.key === r.cands[0]) : 99;
+  const rows = [...P.rows].sort((a, b) => ord(a) - ord(b) || a.name.localeCompare(b.name, 'ko', { numeric: true }));
+  const cnt = {}; rows.forEach(r => { if (r.cands.length === 1) cnt[r.cands[0]] = (cnt[r.cands[0]] || 0) + 1; });
+  const why = r => r.cands.length > 1 ? `이름만으로는 ${r.cands.map(lab).join(' / ')} 중 어느 것인지 알 수 없음`
+    : r.cands.length === 0 ? (/통합데이터|분류결과/.test(r.name.normalize('NFC')) ? '통합 실행 결과 파일 — 「② 통합 실행 결과 2개 넣기」에 넣으세요' : '이름에 종류 단어가 없음 — 원본이면 종류를 골라 주세요')
+    : cnt[r.cands[0]] > 1 ? `${lab(r.cands[0])} 파일이 ${cnt[r.cands[0]]}개 — 하나만 고르세요` : '';
+  const info = n => { const f = fileOf(n); return f ? `${(f.size / 1024).toFixed(0)}KB · 수정 ${new Date(f.lastModified).toLocaleDateString('ko-KR')}` : ''; };
+  const opt = (r) => {
+    // 기본값: 후보가 하나뿐이고 같은 종류가 없으면 그 종류 · 같은 종류가 여러 개이거나 애매하면 비워 두고 고르게 함 · 종류 단어가 없으면 사용 안 함
+    const def = r.cands.length === 1 && cnt[r.cands[0]] === 1 ? r.cands[0] : r.cands.length === 0 ? 'none' : '';
+    const pref = r.cands.length ? r.cands : K.map(k => k.key);
+    const rest = K.map(k => k.key).filter(k => !pref.includes(k));
+    return `<option value=""${def === '' ? ' selected' : ''}>— 골라 주세요 —</option>`
+      + pref.map(k => `<option value="${k}"${def === k ? ' selected' : ''}>${escH(lab(k))}</option>`).join('')
+      + `<option value="none"${def === 'none' ? ' selected' : ''}>사용 안 함</option>`
+      + (rest.length ? `<optgroup label="다른 종류">${rest.map(k => `<option value="${k}">${escH(lab(k))}</option>`).join('')}</optgroup>` : '');
+  };
+  box.innerHTML = `<h4>파일 종류를 확인해 주세요</h4>
+    <p class="src">같은 종류의 파일이 여러 개이거나, 이름만으로 종류를 정할 수 없는 파일이 있습니다. 임의로 고르지 않으니, 파일마다 종류를 고르고 같은 종류는 하나만 남겨 주세요(나머지는 「사용 안 함」).</p>
+    <div class="tw"><table><tr><th>파일</th><th>종류</th><th>크기·수정일</th></tr>${rows.map((r, i) => `<tr data-i="${i}"><td>${escH(r.name)}${why(r) ? `<br><small>${escH(why(r))}</small>` : ''}</td><td><select data-n="${escH(r.name)}">${opt(r)}</select></td><td><small>${escH(info(r.name))}</small></td></tr>`).join('')}</table></div>
+    ${P.skipped.length ? `<p class="src">"오류"·"테스트"가 들어가 뺀 파일: ${P.skipped.map(escH).join(', ')}</p>` : ''}
+    <div class="dmsg" id="chMsg"></div>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="more" id="chGo" type="button">이 선택으로 계산하기</button><button class="more" id="chNo" type="button">취소</button></div>`;
+  box.hidden = false;
+  const sels = [...box.querySelectorAll('select')];
+  const check = () => {
+    const pick = {}, probs = [];
+    sels.forEach(s => { s.closest('tr').classList.remove('bad'); if (s.value && s.value !== 'none') (pick[s.value] = pick[s.value] || []).push(s); });
+    const blank = sels.filter(s => !s.value);
+    if (blank.length) { probs.push(`종류를 고르지 않은 파일 ${blank.length}개`); blank.forEach(s => s.closest('tr').classList.add('bad')); }
+    for (const [k, ss] of Object.entries(pick)) if (ss.length > 1) { probs.push(`${lab(k)}가 ${ss.length}개 골라짐 — 하나만 남기세요`); ss.forEach(s => s.closest('tr').classList.add('bad')); }
+    if (!pick.J) probs.push('1. 체납집계표는 꼭 하나 골라야 합니다');
+    $('#chMsg').className = probs.length ? 'dmsg err' : 'dmsg ok';
+    $('#chMsg').textContent = probs.length ? probs.join(' · ') : '좋습니다. 「이 선택으로 계산하기」를 눌러 주세요.';
+    $('#chGo').disabled = probs.length > 0;
+    return probs.length === 0;
+  };
+  sels.forEach(s => s.addEventListener('change', check)); check();
+  $('#chNo').addEventListener('click', () => { box.hidden = true; $('#msgB').className = 'dmsg'; $('#msgB').textContent = '취소했습니다. 파일을 다시 넣어 주세요.'; });
+  $('#chGo').addEventListener('click', async () => {
+    if (!check()) return;
+    const assign = {}; sels.forEach(s => { assign[s.dataset.n] = s.value === 'none' ? '' : s.value; });
+    const m = $('#msgB'); m.className = 'dmsg'; m.textContent = '계산 중입니다…';
+    try { await loadRaw(all, assign, items); m.className = 'dmsg ok'; m.textContent = '화면을 새 데이터로 바꿨습니다. (고른 파일로 계산)'; }
+    catch (e) { console.error(e); m.className = 'dmsg err'; m.textContent = e && e.message ? e.message : String(e); box.hidden = false; }
+  });
 }
 
 function wireDrop(dropId, pickId, msgId, handler) {
@@ -944,7 +1145,11 @@ function wireDrop(dropId, pickId, msgId, handler) {
   const go = async fl => {
     if (!fl || !fl.length) return;
     m.className = 'dmsg'; m.textContent = '읽는 중입니다…';
-    try { await handler(fl); m.className = 'dmsg ok'; m.textContent = '화면을 새 데이터로 바꿨습니다.'; }
+    try {
+      const r = await handler(fl);
+      if (r === 'choose') { m.className = 'dmsg warn'; m.textContent = '같은 종류 파일이 여러 개이거나 종류가 애매한 파일이 있습니다. 아래 「파일 종류 확인」에서 골라 주세요.'; return; }
+      m.className = 'dmsg ok'; m.textContent = '화면을 새 데이터로 바꿨습니다.';
+    }
     catch (e) { console.error(e); m.className = 'dmsg err'; m.textContent = e && e.message ? e.message : String(e); }
   };
   d.addEventListener('click', () => p.click());
