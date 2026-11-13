@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.13</title>
+<title>1팀 체납관리 홈 ver.14</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -267,7 +267,7 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
             <p class="src">비교할 <b>전월 자료</b>를 넣어 주세요. 이 브라우저 안에서만 읽고 어디에도 보내지 않습니다.</p>
             <ul class="rules"><li><b>전월 분류결과</b> <code>체납관리_분류결과_YYYYMM.xlsx</code> (「전체 결과」 시트) — 통합 실행·분류도구가 만든 지난달 결과. 체납액까지 비교하려면 같은 달 <code>체납관리_통합데이터_YYYYMM.xlsx</code>도 함께 넣으세요.</li><li>또는 <b>전월 원본 Excel 9종</b> — 이 페이지가 전월 기준일로 다시 분류합니다.</li></ul>
             <div class="dline"><label for="momBase">전월 기준일(월말 결산일)</label><input type="date" id="momBase"><span style="color:var(--ink3)">분류결과 파일의 「요약」 시트에 기준일이 있으면 그 날짜를 씁니다</span></div>
-            <div class="drop" id="dropM">전월 파일을 여기에 끌어다 놓거나 눌러서 선택<br><small>분류결과(+통합데이터) 또는 원본 9종 · "오류"·"테스트"가 들어간 파일은 제외</small></div>
+            <div class="drop" id="dropM">전월 파일을 여기에 끌어다 놓거나 눌러서 선택<br><small>분류결과(+통합데이터) 또는 원본 9종 · 이름에 "오류"·"테스트"가 들어간 파일도 인식</small></div>
             <input type="file" id="pickM" accept=".xlsx" multiple hidden>
             <div class="dmsg" id="msgM"></div>
           </div>
@@ -347,7 +347,7 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
           <div class="card"><h3>① 원본 Excel 9개 넣기</h3>
             <p class="src">wise에서 받은 체납집계표 · 납부최고서 1·2차 · 가옥명도최고 · 분과심의 · 소송통고 1·2차 · 제소자 · 소송정보. 이 페이지가 통합(A01)과 분류(A02~A04)까지 합니다 — 분류도구 ver.6과 같은 규칙</p>
             <div class="dline"><label for="dBase">기준일(월말 결산일)</label><input type="date" id="dBase"><span style="color:var(--ink3)">판단 기준값은 「② 대상자 분류」 화면의 값 사용 · <code>체납관리_기준값.json</code>을 같이 넣으면 그 값 사용</span></div>
-            <div class="drop" id="dropB">원본 파일들을 여기에 끌어다 놓거나 눌러서 선택<br><small>파일 이름에 체납집계표·납부최고서·가옥명도최고·분과심의·소송통고·제소자·소송정보 중 한 단어만 들어 있으면 인식 · 같은 종류가 여러 개거나 애매하면 직접 고름 · "오류"·"테스트"가 들어간 파일은 제외 · <b>9종이 모두 있어야 계산</b></small></div>
+            <div class="drop" id="dropB">원본 파일들을 여기에 끌어다 놓거나 눌러서 선택<br><small>파일 이름에 체납집계표·납부최고서·가옥명도최고·분과심의·소송통고·제소자·소송정보 중 한 단어만 들어 있으면 인식 · 같은 종류가 여러 개거나 애매하면 직접 고름 · 이름에 "오류"·"테스트"가 들어간 파일도 인식 · <b>9종이 모두 있어야 계산</b></small></div>
             <input type="file" id="pickB" accept=".xlsx,.json" multiple hidden>
             <div class="dmsg" id="msgB"></div>
             <div class="chk chooser" id="chooser" hidden></div>
@@ -611,7 +611,7 @@ function kindsOf(name){
 function plan(items){
   const skipped = [], rows = [];
   for (const {name} of items){
-    if (/오류|테스트/.test(String(name).normalize('NFC'))) { skipped.push(name); continue; }
+    // ver.14: 이름에 "오류"·"테스트"가 들어가도 빼지 않고 원본으로 인식한다 (같은 종류의 정식 파일과 함께 들어오면 「파일 종류 확인」에서 사용자가 고름)
     rows.push({ name, cands: kindsOf(name) });
   }
   const byKind = {};
@@ -669,7 +669,8 @@ function numChk(v, what, emptyMsg){
 function headerTable(rows, maxScan=8){
   // '계약번호' 셀이 있는 줄을 찾고, 그 위나 아래 줄이 또 하나의 머리글 줄인지 판단한다
   let k = -1, cc = -1;
-  for (let i=0;i<Math.min(maxScan,rows.length);i++){ const j = (rows[i]||[]).findIndex(c=>norm(c)==='계약번호'); if (j>=0) { k = i; cc = j; break; } }
+  // ver.14: '계약번호'가 없으면 '계약자'가 있는 줄을 머리글로 본다 (김태경 님 A01과 같은 기준)
+  for (let i=0;i<Math.min(maxScan,rows.length);i++){ let j = (rows[i]||[]).findIndex(c=>norm(c)==='계약번호'); if (j<0) j = (rows[i]||[]).findIndex(c=>norm(c)==='계약자'); if (j>=0) { k = i; cc = j; break; } }
   if (k<0) return null;
   const has = r => (r||[]).some(c=>c!=null && c!=='');
   let top = null, subRow, start;
@@ -756,21 +757,39 @@ function integrate(){
   }
 
   const fileLabel = k => KINDS.find(x=>x.key===k).label;
+  // ver.14: 체납집계표의 계약자 이름 + 주민번호 앞 7자리 → 계약번호 (계약번호 열이 없는 파일 연결용)
+  const person = new Map();
+  { const nc = c('계약자'), jc = c('주민등록번호') >= 0 ? c('주민등록번호') : c('주민번호');
+    if (nc >= 0 && jc >= 0) for (const r of J.data) { const no = str(r[c('계약번호')]); const nm = norm(r[nc]), jv = String(r[jc] ?? '').replace(/\D/g, ''); if (!no || !nm || jv.length < 7) continue; const pk = nm + '|' + jv.slice(0, 7); if (!person.has(pk)) person.set(pk, new Set()); person.get(pk).add(no); } }
   // ver.9: 각 파일에서 완료 판단에 쓰는 열. 없으면 그 단계가 '완료 아님'으로만 계산되므로 경고한다
   const WANT = { P1:[['납부최고단계']], P2:[['납부최고단계']], GA:[['상태','가옥명도']], BG:[['구분']], JE:[['제소의뢰일','제소의뢰']], SI:[['사건번호','본안소송'],['판결일자','판결']] };
   const attach = (key, fn) => {
     if (!state.files[key]) return 0;
     const s = mainSheet(key, key==='BG' ? '분과심의대상세대' : null);
     // ver.10: 읽을 수 없는 파일은 빠진 것과 같으므로 계산을 멈춘다
-    if (!s) throw new Error(`${fileLabel(key)} 파일(${state.files[key].name})에서 "계약번호" 머리글이 있는 시트를 찾지 못해 읽을 수 없습니다. wise에서 받은 원본 파일이 맞는지 확인해 주세요. (9종이 모두 읽혀야 계산합니다)`);
+    if (!s) throw new Error(`${fileLabel(key)} 파일(${state.files[key].name})에서 "계약번호"(또는 "계약자") 머리글이 있는 시트를 찾지 못해 읽을 수 없습니다. wise에서 받은 원본 파일이 맞는지 확인해 주세요. (9종이 모두 읽혀야 계산합니다)`);
     const lack = (WANT[key]||[]).filter(([a,b]) => s.col(a,b)<0).map(([a,b]) => b ? `${b}|${a}` : a);
     if (lack.length) sheetIssues.push({파일: fileLabel(key), 이름: state.files[key].name, 내용: `완료 판단에 쓰는 열이 없음: ${lack.join(', ')} (이 단계는 완료 아님으로 계산될 수 있음)`});
     const ci = s.col('계약번호');
-    let n = 0;
+    // ver.14: 계약번호 열이 없는 파일은 김태경 님 A01과 같이 계약자 이름 + 주민번호 앞 7자리로 체납집계표의 계약번호를 찾아 연결한다
+    const nmC = s.col('계약자'), jmC = s.col('주민등록번호') >= 0 ? s.col('주민등록번호') : s.col('주민번호');
+    if (ci < 0 && (nmC < 0 || jmC < 0)) throw new Error(`${fileLabel(key)} 파일(${state.files[key].name})에 계약번호 열도, 계약자·주민번호 열도 없어 체납집계표와 연결할 수 없습니다.`);
+    let n = 0, byName = 0;
     for (const r of s.data){
       CHK.file = fileLabel(key); CHK.no = '';
-      const no = str(cell(r, ci)), noKey = fixKey();
-      if (!no) { log.push({구분:'계약번호 없음', 파일:fileLabel(key), 계약번호:'', 내용:'계약자 '+str(cell(r, s.col('계약자'))), _k: noKey, _t: 'no', _f: '계약번호', _v: ''}); continue; }
+      let no, noKey;
+      if (ci >= 0) { no = str(cell(r, ci)); noKey = fixKey(); }
+      else {
+        noKey = CHK.file + '|' + r.__i + '|K';   // 화면에서 계약번호를 직접 넣으면 그 값을 씀
+        if (Object.prototype.hasOwnProperty.call(FIX, noKey)) no = str(FIX[noKey]);
+        else {
+          const nm = norm(cell(r, nmC)), jv = String(cell(r, jmC) ?? '').replace(/\D/g, ''), j7 = jv.length >= 7 ? jv.slice(0, 7) : '';
+          const hits = person.get(nm + '|' + j7);
+          if (!nm || !j7 || !hits || hits.size !== 1) { log.push({구분:'이름+주민번호로 계약번호를 찾지 못함', 파일:fileLabel(key), 계약번호:'', 내용: hits && hits.size > 1 ? `계약자 ${nm} — 같은 이름+주민번호 앞 7자리가 ${hits.size}건(동명이인 가능)` : `계약자 ${nm} — 체납집계표에서 같은 이름+주민번호 앞 7자리를 찾지 못함`, _k: noKey, _t: 'no', _f: '계약번호', _v: ''}); continue; }
+          no = [...hits][0]; byName++;
+        }
+      }
+      if (!no) { log.push({구분:'계약번호 없음', 파일:fileLabel(key), 계약번호:'', 내용:'계약자 '+str(cell(r, nmC)), _k: noKey, _t: 'no', _f: '계약번호', _v: ''}); continue; }
       const rec = recs.get(no);
       if (!rec) { log.push({구분:'체납집계표에 없음', 파일:fileLabel(key), 계약번호:no, 내용:'매핑 실패 (계약번호가 체납집계표에 없음)', _k: noKey, _t: 'no', _f: '계약번호', _v: no}); continue; }
       CHK.no = no;
@@ -779,6 +798,7 @@ function integrate(){
       const mc = s.col('체납개월수'); const v = mc>=0 ? num(cell(r, mc)) : null;
       if (v!=null && rec.개월!=null && v!==rec.개월 && key!=='BG') log.push({구분:'값 다름(집계표 기준 적용)', 파일:fileLabel(key), 계약번호:no, 내용:`체납개월수 ${v} ↔ 집계표 ${rec.개월}`});
     }
+    if (ci < 0) sheetIssues.push({파일: fileLabel(key), 이름: state.files[key].name, 내용: `계약번호 열이 없어 계약자 이름 + 주민번호 앞 7자리로 체납집계표와 연결함 (${byName}건 연결 · 못 찾은 행은 「데이터 확인 사항」에서 계약번호를 직접 넣을 수 있음)`});
     return n;
   };
   const counts = {};
@@ -940,7 +960,7 @@ function classify(rec, baseDate, S){
 // assign: { 파일이름: 종류 key 또는 '' (사용 안 함) } — 사용자가 「파일 종류 확인」에서 고른 결과. 없으면 이름으로 정함
 function run(items, baseDate, S, assign, fixes){
   FIX = fixes || {};   // ver.11: 화면에서 고친 값
-  // ver.7: "오류"뿐 아니라 "테스트" 파일도 뺀다 (2026-11-13 김태경 님이 (오류) 파일 이름을 (테스트)로 바꿈)
+  // ver.14: "오류"·"테스트" 파일도 빼지 않는다 (plan의 skipped는 늘 빈 목록 — 예전 버전과 모양만 맞춤)
   state.files = {}; state.sheetUsed = {}; const P = plan(items), skipped = P.skipped, unknown = [], notUsed = [];
   for (const {name, wb} of items){
     if (skipped.includes(name)) continue;
@@ -1213,7 +1233,7 @@ function showChooser(all, xl, items, P) {
   const cnt = {}; rows.forEach(r => { if (r.cands.length === 1) cnt[r.cands[0]] = (cnt[r.cands[0]] || 0) + 1; });
   const why = r => r.cands.length > 1 ? `이름만으로는 ${r.cands.map(lab).join(' / ')} 중 어느 것인지 알 수 없음`
     : r.cands.length === 0 ? (/통합데이터|분류결과/.test(r.name.normalize('NFC')) ? '통합 실행 결과 파일 — 「② 통합 실행 결과 2개 넣기」에 넣으세요' : '이름에 종류 단어가 없음 — 원본이면 종류를 골라 주세요')
-    : cnt[r.cands[0]] > 1 ? `${lab(r.cands[0])} 파일이 ${cnt[r.cands[0]]}개 — 하나만 고르세요` : '';
+    : cnt[r.cands[0]] > 1 ? `${lab(r.cands[0])} 파일이 ${cnt[r.cands[0]]}개 — 하나만 고르세요${/오류|테스트/.test(r.name.normalize('NFC')) ? ' (이 파일은 이름에 "오류"·"테스트"가 있음)' : ''}` : '';
   const info = n => { const f = fileOf(n); return f ? `${(f.size / 1024).toFixed(0)}KB · 수정 ${new Date(f.lastModified).toLocaleDateString('ko-KR')}` : ''; };
   const opt = (r) => {
     // 기본값: 후보가 하나뿐이고 같은 종류가 없으면 그 종류 · 같은 종류가 여러 개이거나 애매하면 비워 두고 고르게 함 · 종류 단어가 없으면 사용 안 함
