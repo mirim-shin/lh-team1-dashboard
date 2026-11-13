@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.16</title>
+<title>1팀 체납관리 홈 ver.17</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -1754,6 +1754,51 @@ function cmpChart(rows, opt = {}) {
 const countBy = (arr, key) => { const o = {}; arr.forEach(r => { const k = typeof key === 'function' ? key(r) : r[key]; if (k != null && k !== '') o[k] = (o[k] || 0) + 1; }); return o; };
 const clsOrder = keys => [...CLS_ORDER.filter(c => keys.includes(c)), ...keys.filter(c => !CLS_ORDER.includes(c))];
 const stName = k => (STATES[k] || ['?'])[0];
+/* ver.17: 예시(가상) 데이터의 「전월 대비 추이」 — 세대별 전월 자료가 없으므로 들어 있는 합계 자료(여현서 A05 지표계산의
+   전월 지표 · 흐름 · 분류별/다음 할 일별 전월 건수 · 이번 달 수행 실적)로 버튼마다 다른 도표를 보여 준다 */
+function renderMomSample(seg, PM, CM, card) {
+  const box = $('#momBody'), P = D.prev || {}, H = D.hh, wonU = v => won(v) + '원', later = [];
+  const stat = items => `<div class="mstat">${items.map(([l, v, s]) => `<div><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="l">${s}</div>` : ''}</div>`).join('')}</div>`;
+  const dlt = (a, b, f = fmt, u = '') => { const d = b - a; return d ? `${PM} 대비 ${d > 0 ? '▲' : '▼'} ${f(Math.abs(d))}${u}` : `${PM}과 같음`; };
+  const note = t => `<p class="src" style="margin:10px 0 0">※ ${t}</p>`;
+  const NOROW = '예시 데이터에는 세대별 전월 자료가 없어 세대 목록·세대별 이동은 볼 수 없습니다. 「데이터 넣기」에 이번 달 자료를 넣고 전월 자료를 넣으면 볼 수 있습니다.';
+  const flowRows = (D.flow || []).map((f, i, a) => ({ label: String(f[0]), n: f[1], amt: f[2], i, last: i === a.length - 1 }));
+  const bar = (id, items, color) => { later.push(() => bars('#' + id, items.map(([l, v, tip]) => ({ label: l, segs: [{ v, color, name: '세대', tip }] })), { lw: 190 })); return `<div class="bars" id="${id}"></div>`; };
+  let html = '';
+  if (seg === 'prev' || seg === 'cur') {
+    const isPrev = seg === 'prev', v = k => P[k] ? P[k][isPrev ? 0 : 1] : null, o = k => P[k] ? P[k][isPrev ? 1 : 0] : null;
+    const S = [['체납세대', '체납세대 수', fmt, '세대'], ['체납금액', '체납금액 (총액)', wonU, ''], ['평균 체납개월', '평균 체납개월', x => (+x).toFixed(1), '개월'], ['세대당 평균 체납액', '세대당 평균 체납액', wonU, '']];
+    html += stat(S.filter(s => v(s[1]) != null).map(([l, k, f, u]) => [`${isPrev ? PM : CM} ${l}`, f(v(k)) + u, isPrev ? `${CM}에는 ${f(o(k))}${u}` : dlt(P[k][0], P[k][1], f, u)]));
+    const curC = countBy(H, 5), keys = clsOrder([...new Set([...Object.keys(D.prevCls || {}), ...Object.keys(curC)])]);
+    html += card('최종분류별 세대', `${PM}과 ${CM} 비교 · 오른쪽은 ${PM} → ${CM} (증감)`, cmpChart(keys.map(k => [k, (D.prevCls || {})[k] || 0, curC[k] || 0])));
+    const miss = k => P[k] || [0, 0], m0 = miss('그중 누락 의심(방치)'), need = miss('관리필요세대');
+    const stRows = [['누락 의심', m0[0], H.filter(r => r[6] === 0).length], ['관리필요(누락 제외)', need[0] - m0[0], H.filter(r => r[6] === 1).length], ['익월 재검토', miss('예외분류(익월 재검토) 세대')[0], H.filter(r => r[6] === 2).length], ['관리중', miss('관리중 세대')[0], H.filter(r => r[6] === 3).length]];
+    const nb = countBy(H.filter(r => r[6] < 2), 7), na = D.prevNext || {}, nk = [...new Set([...Object.keys(na), ...Object.keys(nb)])].sort((x, y) => ((nb[y] || 0) + (na[y] || 0)) - ((nb[x] || 0) + (na[x] || 0)));
+    html += `<div class="grid g2">` + card('관리 상태별 세대', '누락 의심 · 관리필요 · 익월 재검토 · 관리중', cmpChart(stRows)) + card('다음에 할 조치 (관리필요 세대)', '누락 의심 + 관리필요 세대의 다음 할 일', cmpChart(nk.map(k => [k, na[k] || 0, nb[k] || 0]))) + `</div>`;
+    const grp = [['경기도', '시도: 경기도 세대'], ['인천광역시', '시도: 인천광역시 세대'], ['계약', '계약자'], ['해약', '해약자'], ['최근 3개월에 납부한 세대', '최근 3개월 납부 세대']].filter(([, k]) => P[k]);
+    if (grp.length) html += card('지역 · 계약 구분 · 납부 세대', '', cmpChart(grp.map(([l, k]) => [l, P[k][0], P[k][1]])));
+    const amt = [['원금', '원금'], ['연체료', '연체료'], ['체납금액 (총액)', '체납금액 (총액)']].filter(([, k]) => P[k]);
+    if (amt.length) html += card('체납금액 구성', '', cmpChart(amt.map(([l, k]) => [l, P[k][0], P[k][1]]), { fmt: wonU, unit: '' }));
+  } else if (seg === 'gone') {
+    const G = flowRows.filter(r => !r.last && r.i > 0 && typeof r.n === 'number' && r.n < 0);
+    html += stat([['해소 세대 (합계)', fmt(G.reduce((a, r) => a + Math.abs(r.n), 0)) + '세대'], ['해소 체납액 (합계)', wonU(G.reduce((a, r) => a + Math.abs(+r.amt || 0), 0))]]);
+    html += card(`${PM}에는 체납이었는데 ${CM}에 빠진 세대`, '사유별 세대 수 · 막대에 마우스를 올리면 체납액', G.length ? bar('mbSGone', G.map(r => [r.label.replace(/^\(−\)\s*/, ''), Math.abs(r.n), `<b>${escH(r.label)}</b><br>${fmt(Math.abs(r.n))}세대 · ${wonU(Math.abs(+r.amt || 0))}`]), '--s-ok') : '<div class="empty">해소된 세대가 없습니다.</div>') + note(NOROW);
+  } else if (seg === 'new') {
+    const N = flowRows.filter(r => !r.last && r.i > 0 && typeof r.n === 'number' && r.n > 0);
+    html += stat([['신규 체납세대 (합계)', fmt(N.reduce((a, r) => a + r.n, 0)) + '세대'], ['신규 체납액 (합계)', wonU(N.reduce((a, r) => a + (+r.amt || 0), 0))]]);
+    html += card(`${PM}에는 없고 ${CM}에 새로 들어온 세대`, '사유별 세대 수 · 막대에 마우스를 올리면 체납액', N.length ? bar('mbSNew', N.map(r => [r.label.replace(/^\(\+\)\s*/, ''), r.n, `<b>${escH(r.label)}</b><br>${fmt(r.n)}세대 · ${wonU(+r.amt || 0)}`]), '--s-need') : '<div class="empty">새로 들어온 세대가 없습니다.</div>') + note(NOROW);
+  } else if (seg === 'keep') {
+    const first = flowRows[0], lastR = flowRows[flowRows.length - 1], moves = flowRows.filter(r => !r.last && r.i > 0 && typeof r.n === 'number');
+    const keepN = first && typeof first.n === 'number' ? first.n + moves.filter(r => r.n < 0).reduce((a, r) => a + r.n, 0) : null;
+    const amtRow = flowRows.find(r => r.n === '' && r.amt != null);
+    html += stat([['두 달 계속 체납', keepN != null ? fmt(keepN) + '세대' : '—', `${PM} ${first ? fmt(first.n) : '—'}세대에서 해소 세대를 뺀 수`], ['계속 체납 세대 금액 변동', amtRow ? (amtRow.amt >= 0 ? '+' : '−') + wonU(Math.abs(amtRow.amt)) : '—'], [`${CM} 체납금액`, lastR && lastR.amt != null ? wonU(lastR.amt) : '—']]);
+    if (D.done && D.done.length) later.push(() => bars('#mbSDone', D.done.map(d => ({ label: d[0], segs: [{ v: d[1] - d[2], color: '--bar', name: '이번 달 완료' }, { v: d[2], color: '--s-miss', name: `그중 ${PM} 누락 의심` }] })), { lw: 190 }));
+    html += card('이번 달 새로 완료한 조치', `${PM}에는 완료가 아니던 단계를 이번 달에 완료한 세대 · 빨강은 ${PM}에 누락 의심이던 세대`, D.done && D.done.length ? '<div class="bars" id="mbSDone"></div>' : '<div class="empty">이번 달 수행 실적 자료가 없습니다.</div>');
+    html += note('관리 상태 이동표 · 최종분류가 바뀐 세대처럼 세대별 비교가 필요한 도표는 ' + NOROW.replace(/^예시 데이터에는 세대별 전월 자료가 없어 세대 목록·세대별 이동은 볼 수 없습니다\. /, '예시 데이터에서는 볼 수 없습니다. '));
+  }
+  box.innerHTML = `<div class="card" style="padding:10px 14px"><p class="src" style="margin:0">예시(가상) 데이터 · ${PM}과 ${CM}의 합계 자료로 보여 줍니다 (여현서 A05 지표계산 전월대비).</p></div>` + html;
+  later.forEach(fn => fn());
+}
 function renderMomTab() {
   const box = $('#momBody'), segBox = $('#momSeg'), lead = $('#momLead');
   if (!hasMom()) {
@@ -1765,11 +1810,7 @@ function renderMomTab() {
   segBox.innerHTML = MOM_SEGS().map(([k, l]) => `<button type="button" data-seg="${k}" class="${k === seg ? 'on' : ''}">${escH(l)}</button>`).join('');
   lead.innerHTML = `<b>${PM} → ${CM}</b> 전월 대비 추이입니다. 위 버튼이나 「전체 현황」의 흐름 칸을 누르면 그 부분의 도표를 봅니다. 전체 기준(필터와 무관) · 전월 자료: ${escH(MOM.src || '')}`;
   const card = (t, s, body) => `<div class="card mt"><h3>${t}</h3>${s ? `<p class="src">${s}</p>` : ''}${body}</div>`;
-  if (!X) {   // 예시 데이터: 세대별 전월 자료가 없어 최종분류 건수만 비교
-    const curC = countBy(D.hh, 5), keys = clsOrder([...new Set([...Object.keys(D.prevCls), ...Object.keys(curC)])]);
-    box.innerHTML = card('최종분류별 세대', '예시 데이터에는 세대별 전월 자료가 없어 최종분류 건수만 비교합니다. 「데이터 넣기」로 이번 달 자료를 넣고 전월 자료를 넣으면 흐름 칸별 도표를 볼 수 있습니다.', cmpChart(keys.map(k => [k, D.prevCls[k] || 0, curC[k] || 0])));
-    return;
-  }
+  if (!X) { renderMomSample(seg, PM, CM, card); return; }   // ver.17: 예시 데이터는 합계 자료로 칸별 도표
   const P = X.prevRows, C = X.cur, sumA = a => a.reduce((x, r) => x + (+r.amt || 0), 0), wonU = v => won(v) + '원';
   const stat = items => `<div class="mstat">${items.map(([l, v]) => `<div><div class="l">${l}</div><div class="v">${v}</div></div>`).join('')}</div>`;
   const clsCmp = () => { const a = countBy(P, 'cls'), b = countBy(C, 'cls'), keys = clsOrder([...new Set([...Object.keys(a), ...Object.keys(b)])]); return cmpChart(keys.map(k => [k, a[k] || 0, b[k] || 0])); };
