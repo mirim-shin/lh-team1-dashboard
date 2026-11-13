@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.7</title>
+<title>1팀 체납관리 홈 ver.8</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -47,6 +47,11 @@ a{color:inherit}
 .nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;text-decoration:none;color:var(--side-ink);font-weight:500}
 .nav a:hover{background:rgba(255,255,255,.05)}
 .nav a.on{background:var(--side-on);color:#fff}
+.nav a.off{opacity:.42}
+.gate{border:1px solid var(--s-hold);background:color-mix(in srgb,var(--s-hold) 8%,var(--surface));border-radius:12px;padding:12px 16px;margin:0 0 14px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.gate b{font-size:14.5px}.gate p{margin:0;color:var(--ink2);flex:1 1 320px}
+.gate button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:600}
+.gate .warn{flex-basis:100%;color:var(--s-miss);font-size:12.5px;margin:0}
 .nav a .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--side-mute)}
 .nav a .who{margin-left:auto;font-size:11px;color:var(--side-mute)}
 .side .foot{margin-top:auto;font-size:11px;color:var(--side-mute);padding:0 8px;line-height:1.6}
@@ -192,10 +197,11 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
   <aside class="side">
     <div class="brand"><div class="logo">1</div><div><b>1팀 체납관리</b><small>전세임대 AI Agent PoC</small></div></div>
     <nav class="nav" id="nav">
+      <div class="cap">시작</div>
+      <a href="#data" data-v="data"><span class="dot" style="background:var(--s-hold)"></span>데이터 넣기</a>
       <div class="cap">현황</div>
       <a href="#home" data-v="home"><span class="dot" style="background:var(--accent)"></span>전체 현황</a>
       <a href="#list" data-v="list"><span class="dot"></span>세대 목록</a>
-      <a href="#data" data-v="data"><span class="dot" style="background:var(--s-hold)"></span>데이터 넣기</a>
       <div class="cap">Agent 흐름</div>
       <a href="#a01" data-v="a01"><span class="dot" style="background:var(--kim)"></span>① 데이터 통합<span class="who">김태경</span></a>
       <a href="#a02" data-v="a02"><span class="dot" style="background:var(--shin)"></span>② 대상자 분류<span class="who">신미림</span></a>
@@ -203,7 +209,7 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
       <div class="cap">팀</div>
       <a href="#team" data-v="team"><span class="dot"></span>팀 · 협업 규칙</a>
     </nav>
-    <div class="foot"><span class="badge">가상 데이터</span><br>기준일 <span id="fbase"></span><br>LH AI Workflow 워크숍 1팀</div>
+    <div class="foot"><span class="badge" id="fbadge">데이터 없음</span><br>기준일 <span id="fbase"></span><br>LH AI Workflow 워크숍 1팀</div>
   </aside>
 
   <div class="main">
@@ -295,7 +301,12 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
 
       <!-- DATA (ver.5, ver.6: ① 원본 Excel · ② 통합 실행 결과 순서로 바꿈) -->
       <section class="view" id="v-data">
-        <p class="lead">새 체납 데이터 Excel을 넣으면 이 페이지의 모든 화면(전체 현황 · 세대 목록 · 각 단계)이 그 데이터로 바뀝니다. <b>파일은 이 브라우저 안에서만 읽고 어디에도 보내지 않습니다.</b> 페이지를 새로고침하면 기본(가상) 데이터로 돌아갑니다.</p>
+        <!-- ver.8: 데이터 넣기를 첫 화면으로. 데이터를 넣기 전에는 다른 화면에 결과를 보여 주지 않음 -->
+        <div class="gate" id="gate"><b>먼저 데이터를 넣어 주세요</b>
+          <p>아래 ① 또는 ②에 Excel을 넣으면 전체 현황 · 세대 목록 · 각 단계 화면이 <b>넣은 데이터로</b> 만들어집니다. 파일 없이 화면만 둘러보려면 예시 데이터를 쓰세요.</p>
+          <button type="button" id="dSample">예시(가상) 데이터로 둘러보기</button>
+          <p class="warn" id="gateMsg" hidden></p></div>
+        <p class="lead">새 체납 데이터 Excel을 넣으면 이 페이지의 모든 화면(전체 현황 · 세대 목록 · 각 단계)이 그 데이터로 바뀝니다. <b>파일은 이 브라우저 안에서만 읽고 어디에도 보내지 않습니다.</b> 저장되지 않으므로 페이지를 새로고침하면 넣은 데이터가 지워지고 이 화면으로 돌아옵니다.</p>
         <div class="grid g2">
           <div class="card"><h3>① 원본 Excel 9개 넣기</h3>
             <p class="src">wise에서 받은 체납집계표 · 납부최고서 1·2차 · 가옥명도최고 · 분과심의 · 소송통고 1·2차 · 제소자 · 소송정보. 이 페이지가 통합(A01)과 분류(A02~A04)까지 합니다 — 분류도구 ver.6과 같은 규칙</p>
@@ -313,7 +324,7 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
           </div>
         </div>
         <div class="card mt"><h3>지금 화면에 쓰인 데이터</h3><div class="dinfo" id="dInfo"></div>
-          <button class="more" id="dReset" type="button">기본(가상) 데이터로 되돌리기</button></div>
+          <button class="more" id="dReset" type="button">처음으로 (넣은 데이터 지우기)</button></div>
       </section>
 
       <!-- TEAM -->
@@ -492,8 +503,25 @@ $('#fSido').addEventListener('change', e => { F.sido = e.target.value; if (F.gu 
 $('#fGu').addEventListener('change', e => { F.gu = e.target.value; render(); });
 $('#fCon').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; F.con = b.dataset.k; [...$('#fCon').children].forEach(x => x.classList.toggle('on', x === b)); render(); });
 $('#fReset').addEventListener('click', () => { F.sido = F.gu = F.con = ''; $('#fSido').value = ''; $('#fGu').value = ''; [...$('#fCon').children].forEach((x, i) => x.classList.toggle('on', !i)); render(); });
+/* ver.8: LOADED = '' (아직 데이터 없음) · 'sample' (예시 가상 데이터) · 'data' (넣은 데이터) */
+let LOADED = '';
+const NEED_DATA = ['home', 'list', 'a01', 'a02', 'a05'];
 function route() {
-  const v = TITLES[location.hash.slice(1)] ? location.hash.slice(1) : 'home';
+  let v = TITLES[location.hash.slice(1)] ? location.hash.slice(1) : (LOADED ? 'home' : 'data');
+  const gm = $('#gateMsg');
+  if (!LOADED && NEED_DATA.includes(v)) { gm.hidden = false; gm.textContent = `「${TITLES[v][0]}」은(는) 데이터를 넣은 뒤에 볼 수 있습니다.`; v = 'data'; }
+  else gm.hidden = true;
+  $('#gate').style.display = LOADED ? 'none' : '';
+  $('#dInfo').closest('.card').style.display = LOADED ? '' : 'none';
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('off', !LOADED && NEED_DATA.includes(a.dataset.v)));
+  $('#fbadge').textContent = LOADED === 'data' ? '넣은 데이터' : LOADED === 'sample' ? '예시(가상) 데이터' : '데이터 없음';
+  $('#fbase').textContent = LOADED ? D.base : '-';
+  if (!LOADED) {
+    document.querySelectorAll('.view').forEach(s => s.classList.toggle('on', s.id === 'v-' + v));
+    document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.v === v));
+    $('#vtitle').textContent = TITLES[v][0]; $('#vsub').textContent = v === 'data' ? '아직 넣은 데이터가 없습니다' : '';
+    $('#filters').style.display = 'none'; scrollTo(0, 0); return;
+  }
   document.querySelectorAll('.view').forEach(s => s.classList.toggle('on', s.id === 'v-' + v));
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.v === v));
   $('#vtitle').textContent = TITLES[v][0]; $('#vsub').textContent = (TITLES[v][1] ? TITLES[v][1] + ' · ' : '') + `기준일 ${D.base} · ${D.src || '가상 데이터'}`;
@@ -837,7 +865,7 @@ function applyData(D2, info) {
   TITLES.list[1] = '체납세대';
   const b = String(D.base).split('-'); $('#heroEye').textContent = `전세임대 체납관리 · ${b[0]}년 ${+b[1]}월`;
   $('#a05Lead').textContent = '분류 결과를 받아 월 결산 지표를 계산하고 보고서 초안을 만드는 단계입니다. 아래 수치는 「데이터 넣기」에서 넣은 파일로 계산한 값입니다(전월 비교·이번 달 수행 실적은 넣은 파일에 없어 비어 있습니다).';
-  DATA_INFO = info;
+  DATA_INFO = info; LOADED = 'data';
   $('#dotSrc').textContent = (info.kind === 'raw' || info.ownStep) ? '· 오른쪽 조치 진행 열은 신미림 분류 규칙이 완료로 본 단계 기준 (분류 규칙 우선)' : '· 오른쪽 조치 진행 열은 김태경 님 A01 통합데이터 기준 (예전 분류결과 파일이라 분류 기준 열이 없음)';
   F.sido = F.gu = F.con = ''; $('#fSido').value = ''; $('#fGu').value = ''; [...$('#fCon').children].forEach((x, i) => x.classList.toggle('on', !i));
   LX = null; $('#q').value = ''; listPage = 1;
@@ -929,6 +957,7 @@ wireDrop('#dropA', '#pickA', '#msgA', loadResults);
 wireDrop('#dropB', '#pickB', '#msgB', loadRaw);
 (function () { const t = new Date(); const d = new Date(Date.UTC(t.getFullYear(), t.getMonth(), 0)); $('#dBase').value = d.toISOString().slice(0, 10); })();
 $('#dReset').addEventListener('click', () => { location.href = location.pathname; });
+$('#dSample').addEventListener('click', () => { LOADED = 'sample'; if (location.hash !== '#home') location.hash = '#home'; else route(); });
 renderStatic(); render(); route();
 </script>
 </body>
