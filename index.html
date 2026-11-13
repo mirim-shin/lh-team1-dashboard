@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.11</title>
+<title>1팀 체납관리 홈 ver.13</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -56,6 +56,7 @@ a{color:inherit}
 .chk .okline{color:var(--s-ok);font-size:12.5px}
 #chkCard{scroll-margin-top:84px}
 .dmsg.warn{color:var(--s-hold);font-weight:600}
+.a01x{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
 [hidden]{display:none!important}  /* ver.11: 경고 띠(display:flex)가 숨김 상태에서도 빈 칸으로 보이던 문제 수정 */
 .fixt input,.fixt select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:12px}
 .fixt .badin{border-color:var(--s-miss);background:color-mix(in srgb,var(--s-miss) 10%,var(--surface))}
@@ -148,7 +149,7 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
 .more{margin-top:10px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 14px;cursor:pointer}
 
 /* flow */
-.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .fl{border:1px solid var(--line);border-radius:10px;padding:9px 11px}
 .fl .l{font-size:11.5px;color:var(--ink2)}.fl .v{font-size:19px;font-weight:800}
 .fl.end{background:var(--line2)}
@@ -256,7 +257,26 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
           <div class="card"><h3>최종분류별 관리 상태</h3><p class="src">세대 수 · 신미림 분류 기준을 여현서 10월 지표가 이어받은 결과</p><div class="legend" id="lgState"></div><div class="bars" id="chCls"></div></div>
           <div class="card"><h3>다음에 할 조치</h3><p class="src">관리필요 세대의 다음 할 일 · 빨강은 2개월 넘게 진행이 없는 누락 의심</p><div class="bars" id="chNextHome"></div></div>
         </div>
-        <div class="card mt"><h3>9월 → 10월 체납세대 흐름</h3><p class="src">전체 기준 (필터와 무관) · 여현서 A05 지표계산 전월대비</p><div class="flow" id="flow"></div></div>
+        <!-- ver.12: 전월 대비 추이는 요청할 때만 보여 준다. 전월 자료가 없으면 이 자리에서 넣는다 -->
+        <div class="card mt" id="momCard">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+            <div><h3 id="momTitle">전월 대비 추이</h3><p class="src" id="momSrc" style="margin:0">필요할 때만 봅니다 · 버튼을 누르면 전월 자료와 비교합니다</p></div>
+            <button class="more" id="momBtn" type="button">전월 대비 추이 보기</button>
+          </div>
+          <div id="momIn" class="mt" hidden>
+            <p class="src">비교할 <b>전월 자료</b>를 넣어 주세요. 이 브라우저 안에서만 읽고 어디에도 보내지 않습니다.</p>
+            <ul class="rules"><li><b>전월 분류결과</b> <code>체납관리_분류결과_YYYYMM.xlsx</code> (「전체 결과」 시트) — 통합 실행·분류도구가 만든 지난달 결과. 체납액까지 비교하려면 같은 달 <code>체납관리_통합데이터_YYYYMM.xlsx</code>도 함께 넣으세요.</li><li>또는 <b>전월 원본 Excel 9종</b> — 이 페이지가 전월 기준일로 다시 분류합니다.</li></ul>
+            <div class="dline"><label for="momBase">전월 기준일(월말 결산일)</label><input type="date" id="momBase"><span style="color:var(--ink3)">분류결과 파일의 「요약」 시트에 기준일이 있으면 그 날짜를 씁니다</span></div>
+            <div class="drop" id="dropM">전월 파일을 여기에 끌어다 놓거나 눌러서 선택<br><small>분류결과(+통합데이터) 또는 원본 9종 · "오류"·"테스트"가 들어간 파일은 제외</small></div>
+            <input type="file" id="pickM" accept=".xlsx" multiple hidden>
+            <div class="dmsg" id="msgM"></div>
+          </div>
+          <div id="momOut" class="mt" hidden>
+            <div class="flow" id="flow"></div>
+            <div class="mt" id="momDone"></div>
+            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="more" id="momRe" type="button">다른 전월 자료 넣기</button></div>
+          </div>
+        </div>
       </section>
 
       <!-- A01 -->
@@ -331,6 +351,11 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
             <input type="file" id="pickB" accept=".xlsx,.json" multiple hidden>
             <div class="dmsg" id="msgB"></div>
             <div class="chk chooser" id="chooser" hidden></div>
+            <!-- ver.13: 넣은 원본 9종을 김태경 님 A01 양식(체납관리_통합데이터)으로 합쳐 Excel로 내려받기 -->
+            <div class="a01x">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="more" id="a01Go" type="button">통합데이터 만들기 (Excel 받기)</button><span class="dmsg" id="a01Msg" style="margin:0"></span></div>
+              <p class="src" style="margin:6px 0 0">위에 넣은 원본 9종을 김태경 님 A01(<code>통합데이터_만들기_ver.2</code>) 규칙 그대로 계약번호로 합쳐 「통합 · 매핑실패 · 설명」 3개 시트의 <code>체납관리_통합데이터_YYYYMMDD.xlsx</code>로 내려받습니다. 화면에서 고친 값(수기 수정)도 반영됩니다. 파일은 이 컴퓨터에만 저장됩니다.</p>
+            </div>
           </div>
           <div class="card"><h3>② 통합 실행 결과 2개 넣기 <span class="srcbadge">권장</span></h3>
             <p class="src"><code>팀원/취합/체납관리_통합실행/체납관리_실행_ver.2.bat</code>이 <code>결과/&lt;연월&gt;/</code>에 만든 두 파일 (ver.2 결과면 조치 진행 점도 신미림 분류 규칙 기준)</p>
@@ -427,7 +452,9 @@ function render() {
   $('#p3').innerHTML = `${won(H.reduce((a, r) => a + r[4], 0))}<small>원 체납 · ${fmt(H.length)}세대</small>`;
   /* KPI */
   const sum = H.reduce((a, r) => a + r[4], 0), P = D.prev;
-  const delta = (cur, key, unit) => { if (filtered() || !P[key]) return filtered() ? '필터 적용 중' : ''; const d = cur - P[key][0]; if (!d) return '9월과 같음'; return `9월 대비 ${d > 0 ? '▲' : '▼'} ${unit === '원' ? won(Math.abs(d)) + '원' : fmt(Math.abs(d)) + unit}`; };
+  // ver.12: 전월 대비는 「전월 대비 추이 보기」를 눌렀을 때만 KPI 아래에 보여 준다
+  const PM = monLabel(D.pbase);
+  const delta = (cur, key, unit) => { if (!MOM.on) return ''; if (filtered() || !P[key]) return filtered() ? '필터 적용 중' : ''; const d = cur - P[key][0]; if (!d) return `${PM}과 같음`; return `${PM} 대비 ${d > 0 ? '▲' : '▼'} ${unit === '원' ? won(Math.abs(d)) + '원' : fmt(Math.abs(d)) + unit}`; };
   const K = [['체납세대', fmt(H.length), '세대', delta(H.length, '체납세대 수', '세대'), ''], ['체납금액', won(sum), '원', delta(sum, '체납금액 (총액)', '원'), ''],
     ['누락 의심', fmt(st(0)), '세대', delta(st(0), '그중 누락 의심(방치)', '세대'), '--s-miss'], ['관리필요', fmt(need), '세대', delta(need, '관리필요세대', '세대'), '--s-need'],
     ['익월 재검토', fmt(st(2)), '세대', delta(st(2), '예외분류(익월 재검토) 세대', '세대'), '--s-hold'], ['관리중', fmt(st(3)), '세대', delta(st(3), '관리중 세대', '세대'), '--s-ok']];
@@ -453,7 +480,7 @@ function render() {
   /* A02 extras */
   const term = [['3~5개월 (단기)', r => r[3] <= 5], ['6~11개월 (중기)', r => r[3] >= 6 && r[3] <= 11], ['12개월 이상 (장기)', r => r[3] >= 12]];
   bars('#chTerm', term.map(([l, f]) => { const lx = { label: '체납기간: ' + l, fn: f }; return { label: l, go: { lx }, segs: stateSegs(H.filter(f), { lx }) }; }));
-  bars('#chHold', ['소송유예자', '생활안정지원대상자', '분과심의 보류 대상자'].map(c => ({ label: c, go: { cls: c, state: 2 }, note: !filtered() && D.prevCls[c] != null ? `(9월 ${D.prevCls[c]})` : '', segs: [{ v: H.filter(r => r[5] === c && r[6] === 2).length, color: '--s-hold', name: '익월 재검토', go: { cls: c, state: 2 } }] })), { lw: 150 });
+  bars('#chHold', ['소송유예자', '생활안정지원대상자', '분과심의 보류 대상자'].map(c => ({ label: c, go: { cls: c, state: 2 }, note: !filtered() && D.prevCls[c] != null ? `(${monLabel(D.pbase)} ${D.prevCls[c]})` : '', segs: [{ v: H.filter(r => r[5] === c && r[6] === 2).length, color: '--s-hold', name: '익월 재검토', go: { cls: c, state: 2 } }] })), { lw: 150 });
   /* A05 */
   const gus = [...new Set(H.map(r => r[1]))].map(g => ({ label: g.replace(/^전세\((.+)\)$/, '$1'), go: { gu: g }, segs: stateSegs(H.filter(r => r[1] === g), { gu: g }) })).sort((a, b) => b.segs.reduce((x, s) => x + s.v, 0) - a.segs.reduce((x, s) => x + s.v, 0));
   bars('#chGu', gus, { lw: 96 });
@@ -469,8 +496,9 @@ function renderStatic() {
   const gs = [...new Set(D.hh.map(r => r[1]))].sort(); $('#fGu').innerHTML = '<option value="">지자체 전체</option>' + gs.map(g => `<option value="${g}">${g.replace(/^전세\((.+)\)$/, '$1')}</option>`).join('');
   $('#mapSrc').textContent = `통합데이터 설명 시트 · ${D.made} 생성 · 매핑 실패 ${D.mapFail}건`;
   $('#tbFiles').innerHTML = '<tr><th>원천 파일</th><th class="r">원본 행</th><th class="r">통합 반영</th><th>결과</th></tr>' + D.files.map(f => `<tr><td>${f[1].replace(/_선별데이터.*|\(가상\).*/, '')}</td><td class="r">${fmt(f[2])}</td><td class="r">${fmt(f[3])}</td><td>${f[2] === f[3] ? '<span class="okmark">✓</span> 전부 매핑' : `${f[2] - f[3]}건 실패`}</td></tr>`).join('');
-  $('#flow').innerHTML = !D.flow.length ? '<div class="empty">넣은 데이터에는 전월 비교 자료가 없습니다.</div>' : D.flow.filter(f => f[1] !== '').map((f, i, a) => `<div class="fl ${i === 0 || i === a.length - 1 ? 'end' : ''}"><div class="l">${f[0].replace(/\(±\).*/, '')}</div><div class="v">${i === 0 || i === a.length - 1 ? fmt(f[1]) : (f[1] > 0 ? '+' : '−') + fmt(Math.abs(f[1]))}<small style="font-size:12px;font-weight:500;color:var(--ink3)"> 세대</small></div><div class="l">${won(Math.abs(f[2]))}원</div></div>`).join('');
-  $('#tbDone').innerHTML = !D.done.length ? '<tr><td style="color:var(--ink3)">넣은 데이터에는 이번 달 수행 실적 자료가 없습니다.</td></tr>' : '<tr><th>수행 조치</th><th class="r">세대</th><th class="r">그중 9월 누락 의심</th></tr>' + D.done.map(d => `<tr><td>${d[0]}</td><td class="r">${fmt(d[1])}</td><td class="r">${fmt(d[2])}</td></tr>`).join('');
+  renderMom();
+  $('#tbDone').innerHTML = !D.done.length ? '<tr><td style="color:var(--ink3)">이번 달 수행 실적은 전월 자료가 있어야 계산됩니다 — 「전체 현황」의 「전월 대비 추이 보기」에서 전월 자료를 넣어 주세요.</td></tr>' : `<tr><th>수행 조치</th><th class="r">세대</th><th class="r">그중 ${monLabel(D.pbase)} 누락 의심</th></tr>` + D.done.map(d => `<tr><td>${d[0]}</td><td class="r">${fmt(d[1])}</td><td class="r">${fmt(d[2])}</td></tr>`).join('')
+    + (MOM.approx ? '<tr><td colspan="3" style="color:var(--ink3);font-size:12px">※ 전월 분류결과가 예전 형식(「수행 완료 단계」 열)이라 참고용입니다. 분류 규칙이 바뀐 뒤의 자료라면 실제보다 많게 나올 수 있습니다.</td></tr>' : '');
   const c = D.crit, cr = [['단기 · 중기 · 장기 체납 시작', `${c['단기체납_시작_개월']} · ${c['중기체납_시작_개월']} · ${c['장기체납_시작_개월']}개월`], ['특수채권 (해약) 최소 체납', `${c['특수채권_최소_체납개월']}개월`], ['분과심의 대상 보증금잠식률', `${c['분과심의_보증금잠식률_기준_퍼센트']}% 이상`], ['예외(보류): 최근 3개월 납부액', `월임대료 × ${c['예외_최근3개월납부_월임대료_배수']} 이상`], ['소송유예: 최근 3개월 납부액', `월임대료 × ${c['소송유예_최근3개월납부_월임대료_배수']} 이상`], ['강제집행: 최근 3개월 납부액', `월임대료 × ${c['강제집행_최근3개월납부_월임대료_배수_이하']} 이하`], ['누락 의심: 마지막 조치 후', `${c['누락_판단_개월']}개월 이상`]];
   $('#crit').innerHTML = cr.map(x => `<div>${x[0]}</div><div>${x[1]}</div>`).join('');
   $('#tCur').innerHTML = '<option value="">현재 단계 전체</option>' + [...new Set(D.hh.map(r => r[9]))].filter(Boolean).map(c => `<option>${c}</option>`).join('');
@@ -680,7 +708,7 @@ function mainSheet(key, prefer){
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:true, defval:null});
     rows.forEach((x, i) => { if (x) x.__i = i; });   // ver.11: 고친 값을 찾기 위한 행 번호
     const s = readSheet(rows);
-    if (s && s.data.length) return {...s, sheet:n};
+    if (s && s.data.length) { state.sheetUsed[key] = n; return {...s, sheet:n}; }   // ver.13: 통합데이터 만들기에서 같은 시트를 쓰도록 기록
   }
   return null;
 }
@@ -913,7 +941,7 @@ function classify(rec, baseDate, S){
 function run(items, baseDate, S, assign, fixes){
   FIX = fixes || {};   // ver.11: 화면에서 고친 값
   // ver.7: "오류"뿐 아니라 "테스트" 파일도 뺀다 (2026-11-13 김태경 님이 (오류) 파일 이름을 (테스트)로 바꿈)
-  state.files = {}; const P = plan(items), skipped = P.skipped, unknown = [], notUsed = [];
+  state.files = {}; state.sheetUsed = {}; const P = plan(items), skipped = P.skipped, unknown = [], notUsed = [];
   for (const {name, wb} of items){
     if (skipped.includes(name)) continue;
     const r = P.rows.find(x => x.name === name);
@@ -931,7 +959,7 @@ function run(items, baseDate, S, assign, fixes){
   const out = [...recs.values()].map(rec => ({ rec, row: classify(rec, baseDate, S) }));
   return { out, log, counts, recsSize: recs.size, files: Object.fromEntries(Object.entries(state.files).map(([k, v]) => [k, v.name])), skipped, unknown, KINDS, notUsed, missing, sheetIssues };
 }
-return { run, plan, kindsOf, KINDS, toDate, ymd };
+return { run, plan, kindsOf, KINDS, toDate, ymd, used: () => ({ files: { ...state.files }, sheets: { ...state.sheetUsed } }) };
 })();
 /* ===== ver.5 데이터 넣기: 화면 쪽 (넣은 Excel → 대시보드 데이터 D로 바꿔 다시 그림) ===== */
 const escH = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1091,6 +1119,7 @@ function applyData(D2, info) {
   const b = String(D.base).split('-'); $('#heroEye').textContent = `전세임대 체납관리 · ${b[0]}년 ${+b[1]}월`;
   $('#a05Lead').textContent = '분류 결과를 받아 월 결산 지표를 계산하고 보고서 초안을 만드는 단계입니다. 아래 수치는 「데이터 넣기」에서 넣은 파일로 계산한 값입니다(전월 비교·이번 달 수행 실적은 넣은 파일에 없어 비어 있습니다).';
   DATA_INFO = info; LOADED = 'data';
+  D.pbase = D2.pbase || ''; MOM = { on: false, src: '', re: false };   // ver.12: 새 데이터에는 전월 자료가 없으므로 비교를 끈다
   $('#dotSrc').textContent = (info.kind === 'raw' || info.ownStep) ? '· 오른쪽 조치 진행 열은 신미림 분류 규칙이 완료로 본 단계 기준 (분류 규칙 우선)' : '· 오른쪽 조치 진행 열은 김태경 님 A01 통합데이터 기준 (예전 분류결과 파일이라 분류 기준 열이 없음)';
   F.sido = F.gu = F.con = ''; $('#fSido').value = ''; $('#fGu').value = ''; [...$('#fCon').children].forEach((x, i) => x.classList.toggle('on', !i));
   LX = null; $('#q').value = ''; listPage = 1;
@@ -1126,6 +1155,7 @@ async function loadResults(fileList) {
   if (!CR.length || !('계약번호' in CR[0]) || !('최종분류' in CR[0])) throw new Error('분류결과 「전체 결과」 시트에 계약번호·최종분류 열이 없습니다.');
   let notJoined = 0;
   const ownStep = '조치 진행(분류 기준)' in CR[0];
+  CUR_IDS = CR.map(r => String(r['계약번호']).trim());   // ver.12: 전월 비교용 (화면에는 쓰지 않음)
   const hh = CR.map(r => {
     const id = String(r['계약번호']).trim(), g = imap.get(id); if (!g) notJoined++;
     // ver.7: 분류결과에 '조치 진행(분류 기준)'이 있으면(통합 실행 ver.2) 신미림 분류 규칙의 판단을 우선해 점·현재 단계로 씀
@@ -1157,12 +1187,11 @@ async function loadRaw(fileList, assign, cached) {
     if (P.need) { showChooser(all, xl, items, P); return 'choose'; }
   }
   const R = ENGINE.run(items, baseDate, crit, assign, fixMap());
-  LAST = { all, assign, items };
+  LAST = { all, assign, items, used: ENGINE.used() };   // ver.13: 통합데이터 만들기용(쓴 파일·시트)
   const hh = [], integRows = [];
+  CUR_IDS = R.out.map(o => o.rec.계약번호);   // ver.12: 전월 비교용 (화면에는 쓰지 않음)
   for (const { rec, row } of R.out) {
-    const pjDone = rec.pjDates.some(d => d <= baseDate) || (rec.pjDates.length === 0 && !!rec.si && /승소|패소|각하|기각/.test(rec.si.판결결과));
-    const done = { ...rec.done, PJ: pjDone };
-    const st = STG_KEYS.map(k => done[k] ? '2' : (rec.inFile && rec.inFile[STG_FILE[k]]) ? '1' : '0').join('');
+    const st = stageStr(rec, baseDate);
     const li = st.lastIndexOf('2'), cur = li < 0 ? '조치 전' : D.STAGES[li];
     hh.push([MASK(rec.계약번호), rec.지자체명, rec.구분, rec.개월, rec.총합계, row.최종분류, stateOf(row), row['다음 할 일'], row.마지막조치일, cur, st, row.누락여부 === '확인 필요(조치일 없음)' ? 1 : 0, '']);
     integRows.push([rec.지자체명, rec.구분, st, cur]);
@@ -1237,7 +1266,7 @@ function wireDrop(dropId, pickId, msgId, handler) {
     try {
       const r = await handler(fl);
       if (r === 'choose') { m.className = 'dmsg warn'; m.textContent = '같은 종류 파일이 여러 개이거나, 종류가 애매하거나 알 수 없는 파일이 있습니다. 아래 「파일 종류 확인」에서 골라 주세요.'; return; }
-      m.className = 'dmsg ok'; m.textContent = '화면을 새 데이터로 바꿨습니다.';
+      m.className = 'dmsg ok'; m.textContent = typeof r === 'string' ? r : '화면을 새 데이터로 바꿨습니다.';
     }
     catch (e) { console.error(e); m.className = 'dmsg err'; m.textContent = e && e.message ? e.message : String(e); }
   };
@@ -1247,6 +1276,436 @@ function wireDrop(dropId, pickId, msgId, handler) {
   d.addEventListener('drop', e => { e.preventDefault(); d.classList.remove('over'); go(e.dataTransfer.files); });
   p.addEventListener('change', () => { go(p.files); p.value = ''; });
 }
+/* ===== ver.13: 통합데이터 만들기 — 김태경 님 통합데이터/통합데이터_만들기_ver.2.ps1 을 브라우저용으로 그대로 옮김 =====
+   - 열 구성(기본 9 · 조치 9+2 · 공통 37 · [블록] 원본 열), 단계 판단, 매핑실패·설명 시트를 같은 규칙으로 만든다
+   - 셀 색은 Excel 조건부 서식 대신 칸마다 같은 색을 직접 칠한다(초록 = 완료, 노랑 = 대상)
+   - 화면에서 고친 값(ver.11 수기 수정)이 있으면 그 칸을 고친 값으로 바꿔서 합친다 */
+const A01X = (() => {
+  const Sources = [
+    { Code: '집계표', key: 'J', Sheet: null, Block: '집계표' }, { Code: '납부1', key: 'P1', Sheet: null, Block: '납부최고' }, { Code: '납부2', key: 'P2', Sheet: null, Block: '납부최고' },
+    { Code: '가옥명도', key: 'GA', Sheet: null, Block: '가옥명도' }, { Code: '분과심의', key: 'BG', Sheet: '대상세대', Block: '분과심의' },
+    { Code: '소송통고1', key: 'S1', Sheet: null, Block: '소송' }, { Code: '제소', key: 'JE', Sheet: null, Block: '소송' }, { Code: '소송통고2', key: 'S2', Sheet: null, Block: '소송' }, { Code: '소송정보', key: 'SI', Sheet: null, Block: '소송' }];
+  const BlockOrder = ['집계표', '납부최고', '가옥명도', '분과심의', '소송'], GK = ['가옥명도', '소송'];
+  const F = (blocks, re) => blocks.map(b => [b, re]);
+  const Canon = [
+    { N: '계약번호', T: 'text', Core: true, From: F(['집계표', '납부최고', '가옥명도', '분과심의', '소송'], '^계약번호$') },
+    { N: '계약자', T: '', Core: true, From: F(['집계표', '납부최고', '가옥명도', '분과심의', '소송'], '^계약자$') },
+    { N: '주민번호', T: 'text', Core: true, From: [...F(['집계표', '분과심의'], '^주민등록번호$'), ...F(GK, '^주민번호$')] },
+    { N: '지원유형', T: '', Core: true, From: [...F(['집계표'], '^지원유형$'), ...F(GK, '^전세지원유형$'), ...F(['분과심의'], '^공급유형$')] },
+    { N: '지자체명', T: '', Core: true, From: [...F(['집계표'], '^지자체명$'), ...F(GK, '^지자체명$'), ...F(['납부최고', '분과심의'], '^단지명$')] },
+    { N: '계약/해약', T: '', Core: true, From: [...F(['집계표', '분과심의'], '^계약/해약구분$'), ...F(['납부최고'], '^해약여부$')] },
+    { N: '체납개월수', T: '', Core: true, From: F(['집계표', '납부최고', '가옥명도', '분과심의', '소송'], '^체납개월수$') },
+    { N: '체납액', T: '', Core: true, From: [...F(['집계표'], '^총합계$'), ...F(['납부최고'], '^체납금액_합계$'), ...F(GK, '^체납금액$'), ...F(['분과심의'], '^체납금액$')] },
+    { N: '담당자', T: '', Core: true, From: F(GK, '^담당자$') },
+    { N: '신분', T: '', Core: false, From: [...F(['집계표', '납부최고'], '^신분$'), ...F(GK, '^열7$')] },
+    { N: '지자체코드', T: 'text', Core: false, From: [...F(['집계표'], '^지자체코드$'), ...F(GK, '^지자체코드$'), ...F(['분과심의'], '^단지코드$')] },
+    { N: '주소', T: '', Core: false, From: F(['집계표', '납부최고', '가옥명도', '소송'], '^주소$') },
+    { N: '동', T: 'text', Core: false, From: F(['납부최고', '분과심의'], '^동$') },
+    { N: '호', T: 'text', Core: false, From: F(['납부최고', '분과심의'], '^호$') },
+    { N: '연락처', T: 'text', Core: false, From: [...F(['집계표'], '^이동전화$'), ...F(GK, '^연락처$'), ...F(['납부최고'], '^연락처$'), ...F(['납부최고'], '핸드폰번호$')] },
+    { N: '계약시작일', T: 'date', Core: false, From: [...F(['집계표'], '^계약시작일$'), ...F(GK, '^임대차계약시작일$')] },
+    { N: '계약종료일', T: 'date', Core: false, From: [...F(['집계표'], '^계약종료일$'), ...F(GK, '^임대차계약종료일$')] },
+    { N: '보증금', T: '', Core: false, From: [...F(['집계표'], '^입주자부담금$'), ...F(['납부최고'], '^총수납보증금$'), ...F(GK, '^임대보증금$'), ...F(['분과심의'], '^총수납보증금')] },
+    { N: '체납개월건수', T: '', Core: false, From: F(['집계표', '분과심의'], '^체납개월건수$') },
+    { N: '체납원금', T: '', Core: false, From: [...F(['집계표'], '^조정합계$'), ...F(['납부최고'], '^체납금액_체납원금$'), ...F(['분과심의'], '^체납금액_임대료$')] },
+    { N: '연체료', T: '', Core: false, From: [...F(['집계표'], '^연체료합계$'), ...F(['납부최고'], '^체납금액_체납연체료$'), ...F(['분과심의'], '^체납금액_연체료$')] },
+    { N: '현재월임대료', T: '', Core: false, From: F(['집계표', '분과심의'], '^현재월임대료$') },
+    { N: '최근3개월납부금액', T: '', Core: false, From: F(['집계표', '분과심의'], '^최근3개월납부금액$') },
+    { N: '최근납부일', T: 'date', Core: false, From: [...F(['집계표', '분과심의'], '^최근납부일$'), ...F(GK, '^최종수납일$')] },
+    { N: '최종독려일자', T: 'date', Core: false, From: F(['집계표', '분과심의'], '^최종독려일자$') },
+    { N: '최종독려차수', T: '', Core: false, From: F(['집계표', '분과심의'], '^최종독려차수$') },
+    { N: '주거급여수급여부', T: '', Core: false, From: [...F(['집계표'], '^주거급여수신여부$'), ...F(['분과심의'], '^주거급여수급여부$')] },
+    { N: '압류세대여부', T: '', Core: false, From: F(['집계표', '분과심의'], '^압류세대여부$') },
+    { N: '감액세대여부', T: '', Core: false, From: F(['납부최고', '분과심의'], '^감액세대여부$') },
+    { N: '소송세대여부', T: '', Core: false, From: [...F(['집계표'], '^소송관리-소송세대여부$'), ...F(['납부최고'], '^소송세대여부$'), ...F(['분과심의'], '^소송관리_소송세대여부$')] },
+    { N: '소송관리 1단계 제소의뢰일자', T: 'date', Core: false, From: [...F(['집계표'], '^소송관리-1단계제소의뢰일자$'), ...F(['분과심의'], '^소송관리_1단계제소의뢰일자$')] },
+    { N: '소송관리 2단계 본안소송일자', T: 'date', Core: false, From: [...F(['집계표'], '^소송관리-2단계본안소송일자$'), ...F(['분과심의'], '^소송관리_2단계본안소송일자$')] },
+    { N: '소송관리 3단계 판결일자', T: 'date', Core: false, From: [...F(['집계표'], '^소송관리-3단계판결일자$'), ...F(['분과심의'], '^소송관리_3단계판결일자$')] },
+    { N: '소송관리 종결처리여부', T: '', Core: false, From: [...F(['집계표'], '^소송관리-종결처리여부$'), ...F(['분과심의'], '^소송관리_종결처리여부$')] },
+    { N: '납부최고 1차 독려 여부', T: '', Core: false, From: [...F(GK, '^납부최고_1차$'), ...F(['분과심의'], '^납부최고_납부최고1차여부$')] },
+    { N: '납부최고 1차 독려일자', T: 'date', Core: false, From: [...F(['납부최고'], '^납부최고1차_출력일자$'), ...F(GK, '^납부최고_1차독려일자$')] },
+    { N: '납부최고 2차 독려 여부', T: '', Core: false, From: [...F(GK, '^납부최고_2차$'), ...F(['분과심의'], '^납부최고_납부최고2차여부$')] },
+    { N: '납부최고 2차 독려일자', T: 'date', Core: false, From: [...F(['납부최고'], '^납부최고2차_출력일자$'), ...F(GK, '^납부최고_2차독려일자$')] },
+    { N: '완납여부', T: '', Core: false, From: F(GK, '^납부최고_완납여부$') },
+    { N: '완납일자', T: 'date', Core: false, From: [...F(['납부최고'], '^완납일자$'), ...F(GK, '^납부최고_완납일자$')] },
+    { N: '가옥명도최고여부', T: '', Core: false, From: [...F(['소송'], '^가옥명도최고여부$'), ...F(['분과심의'], '가옥명도최고여부$')] },
+    { N: '분과심의여부', T: '', Core: false, From: F(GK, '^분과심의여부$') },
+    { N: '해지여부', T: '', Core: false, From: F(GK, '^해지여부$') },
+    { N: '처리유형', T: '', Core: false, From: F(GK, '^처리유형$') }];
+  const StageSourceCols = [['납부최고', '납부최고1차발송일자$'], ['납부최고', '납부최고2차발송일자$'], ['소송', '_제소의뢰일$'], ['소송', '^소송통고2차_처리일시$'], ['소송', '_본안소송일$'], ['소송', '_판결일자$']];
+  const re = s => new RegExp(s, 'i');
+  const Excluded = (block, name) => StageSourceCols.some(p => p[0] === block && re(p[1]).test(name)) || Canon.some(cd => cd.From.some(p => p[0] === block && re(p[1]).test(name)));
+  const BlockColor = { '기본': 'C6D9EA', '조치': 'B4E0C6', '공통': 'DAEFE2', '집계표': 'D9E4F2', '납부최고': 'F7EBDD', '가옥명도': 'D6E4FC', '분과심의': 'ECDFE4', '소송': 'F2E1D9' };   // 원본 BGR 값을 RGB로 바꾼 것
+  // 공통 함수 (PowerShell 원본과 같은 동작)
+  const N = s => s == null ? '' : String(s).replace(/\s/g, '');
+  const Blank = v => { if (v == null) return true; const t = String(v).trim(); return t === '' || t === '선택' || t === '--'; };
+  const isNum = v => typeof v === 'number';
+  const ContractKey = v => v == null ? '' : isNum(v) ? String(Math.round(v)) : String(v).trim().replace(/\.0$/, '');
+  const Jumin7 = v => { const d = String(v ?? '').replace(/\D/g, ''); return d.length >= 7 ? d.slice(0, 7) : ''; };
+  const oa = (y, m, d) => { const t = Date.UTC(y, m - 1, d), x = new Date(t); return x.getUTCFullYear() === y && x.getUTCMonth() === m - 1 && x.getUTCDate() === d ? t / 864e5 + 25569 : null; };
+  function ToSerial(v) {
+    if (v == null) return null;
+    if (isNum(v)) {
+      if (v >= 20000 && v <= 80000) return Math.floor(v);
+      if (v >= 19000101 && v <= 21001231 && v === Math.floor(v)) { const s = String(v); return oa(+s.slice(0, 4), +s.slice(4, 6), +s.slice(6, 8)); }
+      return null;
+    }
+    const t = String(v).trim(); if (!t) return null;
+    let m = t.match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2}))?)?$/) || t.match(/^(\d{4})\.(\d{2})\.(\d{2})$/) || t.match(/^(\d{4})\/(\d{2})\/(\d{2})$/) || t.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (!m) return null;
+    if (m[4] != null && (+m[4] > 23 || +m[5] > 59 || (m[6] != null && +m[6] > 59))) return null;
+    return oa(+m[1], +m[2], +m[3]);
+  }
+  const DateText = v => { const s = ToSerial(v); return s == null ? '' : new Date((s - 25569) * 864e5).toISOString().slice(0, 10); };
+  const truthy = x => x != null && x !== '' && x !== 0 && x !== false;
+  const str = x => x == null ? '' : isNum(x) ? numText(x) : String(x);
+  function numText(x) { let s = Number.isInteger(x) ? String(x) : x.toFixed(10); if (s.includes('e')) s = x.toFixed(10); if (s.includes('.')) s = s.replace(/0+$/, '').replace(/\.$/, ''); return s; }
+
+  // 엑셀 표 읽기: '계약번호' 또는 '계약자'가 있는 줄을 머리글로 보고 위/아래 줄과 합쳐 열 이름을 만든다 (Read-Table)
+  function readTable(file, sheetLike, sheetUsed, fixes) {
+    const wb = file.wb;
+    let sn = sheetLike ? wb.SheetNames.find(n => n.includes(sheetLike)) : null;
+    if (!sn) sn = wb.SheetNames[0];
+    const ws = wb.Sheets[sn], rg = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    const lastRow = rg.e.r + 1, lastCol = rg.e.c + 1;
+    const v = Array.from({ length: lastRow + 1 }, () => new Array(lastCol + 1).fill(null));   // v[행][열], 1부터
+    // 빈 줄도 포함해서 읽으므로 배열 i번째 = 시트의 (시작 행 + i)번째 줄 (분류 엔진도 같은 방식으로 읽음)
+    const arr = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true });
+    arr.forEach((row, i) => { const r = rg.s.r + i + 1; if (!row) return; row.forEach((x, j) => { const c = rg.s.c + j + 1; if (r <= lastRow && c <= lastCol) v[r][c] = x; }); });
+    // 화면에서 고친 값: 분류 엔진이 같은 시트를 읽었을 때만 같은 칸에 넣는다
+    if (fixes && sheetUsed === sn) for (const [i, j, val] of fixes) { const r = rg.s.r + i + 1, c = rg.s.c + j + 1; if (r <= lastRow && c <= lastCol) v[r][c] = val; }
+    let hr = 0;
+    for (let r = 1; r <= Math.min(10, lastRow) && !hr; r++) for (let c = 1; c <= lastCol; c++) { const t = N(v[r][c]); if (t === '계약번호' || t === '계약자') { hr = r; break; } }
+    if (!hr) throw new Error(`머리글(계약번호/계약자)을 찾지 못함: ${file.name}`);
+    const TextCount = r => { let n = 0; for (let c = 1; c <= lastCol; c++) { const x = v[r][c]; if (typeof x === 'string' && x.trim() !== '') n++; } return n; };
+    let top = hr, sub = 0;
+    if (hr + 1 <= lastRow && Blank(v[hr + 1][1]) && TextCount(hr + 1) >= 3) { top = hr; sub = hr + 1; }
+    else if (hr > 1 && TextCount(hr - 1) >= 3) { top = hr - 1; sub = hr; }
+    const names = new Array(lastCol + 1).fill(''); let carry = '';
+    for (let c = 1; c <= lastCol; c++) {
+      let p = N(v[top][c]); const s = sub ? N(v[sub][c]) : ''; let carryUse;
+      if (p !== '') carry = p;
+      if (/^대상자정보\d*$/.test(p)) { p = ''; carryUse = ''; } else carryUse = carry;
+      if (/^대상자정보\d*$/.test(carry)) carryUse = '';
+      if (s !== '') { const parent = p !== '' ? p : carryUse; names[c] = parent !== '' && parent !== s ? `${parent}_${s}` : s; }
+      else names[c] = p !== '' ? p : '';
+    }
+    const seen = new Set();
+    for (let c = 1; c <= lastCol; c++) { if (names[c] === '') names[c] = '열' + c; const base = names[c]; let k = 2; while (seen.has(names[c])) { names[c] = `${base}_${k}`; k++; } seen.add(names[c]); }
+    const first = (sub || top) + 1, rows = [];
+    for (let r = first; r <= lastRow; r++) { const row = v[r]; let any = false; for (let c = 1; c <= lastCol; c++) if (!Blank(row[c])) { any = true; break; } if (any) rows.push(row); }
+    const idx = new Map(); for (let c = 1; c <= lastCol; c++) idx.set(names[c], c);
+    return { Names: names, Cols: lastCol, Rows: rows, Idx: idx, File: file.name };
+  }
+  const ColOf = (t, rx) => { const R = re(rx); for (let c = 1; c <= t.Cols; c++) if (R.test(t.Names[c])) return c; return 0; };
+  const Val = (row, c) => row == null || c <= 0 ? null : row[c];
+
+  function build(used, fixMapByLabel) {
+    // 1. 파일 읽기 (분류 엔진이 쓴 9종 파일 그대로)
+    const tables = {}, report = [];
+    for (const src of Sources) {
+      const f = used.files[src.key]; if (!f) continue;
+      const t = readTable(f, src.Sheet, used.sheets[src.key], fixMapByLabel[src.key]);
+      t.Src = src; t.KeyCol = ColOf(t, '^계약번호$'); t.NameCol = ColOf(t, '^계약자$'); t.JuminCol = ColOf(t, '^주민(등록)?번호$');
+      tables[src.Code] = t;
+    }
+    // 2. 이름+주민7 → 계약번호 (계약번호 열이 없는 파일용)
+    const person = new Map();
+    for (const t of Object.values(tables)) {
+      if (!(t.KeyCol && t.NameCol && t.JuminCol)) continue;
+      for (const row of t.Rows) { const k = ContractKey(row[t.KeyCol]), j = Jumin7(row[t.JuminCol]), nm = N(row[t.NameCol]); if (!k || !j || !nm) continue; const pk = `${nm}|${j}`; if (!person.has(pk)) person.set(pk, new Set()); person.get(pk).add(k); }
+    }
+    // 3. 계약번호별로 모으기
+    const order = [], recs = new Map(), fails = [];
+    const Rec = k => { if (!recs.has(k)) { recs.set(k, { Files: [], Src: {}, Map: '계약번호' }); order.push(k); } return recs.get(k); };
+    for (const src of Sources) {
+      const t = tables[src.Code]; if (!t) continue; let matched = 0;
+      for (const row of t.Rows) {
+        let r;
+        if (!t.KeyCol) {
+          const nm = N(Val(row, t.NameCol)), j = Jumin7(Val(row, t.JuminCol)), pk = `${nm}|${j}`, hits = person.has(pk) ? [...person.get(pk)] : [];
+          if (hits.length === 1) { r = Rec(hits[0]); r.Map = `계약번호 + ${src.Code}(이름+주민번호 임시)`; }
+          else { fails.push([t.File, Val(row, 1), Val(row, t.NameCol), j, Val(row, ColOf(t, '^단지명$')), hits.length === 0 ? '같은 이름+주민번호 앞 7자리를 다른 파일에서 찾지 못함' : `같은 이름+주민번호 앞 7자리가 ${hits.length}건(동명이인 가능)`]); continue; }
+        } else {
+          const k = ContractKey(Val(row, t.KeyCol));
+          if (!k) { fails.push([t.File, Val(row, 1), Val(row, t.NameCol), Jumin7(Val(row, t.JuminCol)), '', '계약번호가 비어 있음']); continue; }
+          r = Rec(k);
+        }
+        r.Src[src.Code] = row; if (!r.Files.includes(src.Code)) r.Files.push(src.Code); matched++;
+      }
+      report.push([src.Code, t.File, t.Rows.length, matched]);
+    }
+    // 4. 열 구성
+    const blockCols = {};
+    for (const b of BlockOrder) {
+      const list = [];
+      for (const src of Sources.filter(s => s.Block === b)) { const t = tables[src.Code]; if (!t) continue; for (let c = 1; c <= t.Cols; c++) { const nm = t.Names[c]; if (!Excluded(b, nm) && !list.includes(nm)) list.push(nm); } }
+      blockCols[b] = list;
+    }
+    const basicCols = Canon.filter(c => c.Core).map(c => c.N), commonCols = [...Canon.filter(c => !c.Core).map(c => c.N), '포함된 파일', '매핑 방법'];
+    const stageCols = ['납부최고 1차', '납부최고 2차', '가옥명도 최고', '분과심의', '소송통고 1차', '제소의뢰(1단계)', '소송통고 2차', '본안소송(2단계)', '판결(3단계)'], sumCols = ['현재 단계', '완료 단계 수'];
+    const canonType = Object.fromEntries(Canon.map(c => [c.N, c.T]));
+    const header = [], colBlock = [];
+    basicCols.forEach(h => { header.push(h); colBlock.push('기본'); });
+    [...stageCols, ...sumCols].forEach(h => { header.push(h); colBlock.push('조치'); });
+    commonCols.forEach(h => { header.push(h); colBlock.push('공통'); });
+    BlockOrder.forEach(b => blockCols[b].forEach(h => { header.push(`[${b}] ${h}`); colBlock.push(b); }));
+    const nCols = header.length;
+    const BlockVal = (rec, block, name) => { let val = null; for (const src of Sources.filter(s => s.Block === block)) { if (!(src.Code in rec.Src)) continue; const t = tables[src.Code]; if (!t.Idx.has(name)) continue; const x = rec.Src[src.Code][t.Idx.get(name)]; if (!Blank(x)) val = x; else if (val == null) val = x; } return val; };
+    const FirstOf = (rec, pairs) => { for (const p of pairs) { for (const src of Sources.filter(s => s.Block === p[0]).reverse()) { if (!(src.Code in rec.Src)) continue; const t = tables[src.Code], c = ColOf(t, p[1]); if (c) { const x = rec.Src[src.Code][c]; if (!Blank(x)) return x; } } } return null; };
+    const Has = (rec, block) => Sources.some(s => s.Block === block && s.Code in rec.Src);
+    const Done = d => DateText(d) || '완료';
+    const T = x => String(x ?? '').trim(), TU = x => T(x).toUpperCase();
+    // 5. 행 만들기
+    const isDate = [], isText = [];
+    header.forEach((h, c) => {
+      if (colBlock[c] === '기본' || colBlock[c] === '공통') { if (canonType[h] === 'date') isDate[c] = true; if (canonType[h] === 'text' || h === '포함된 파일' || h === '매핑 방법') isText[c] = true; return; }
+      if (colBlock[c] !== '조치' && /(일자|일시|시작일|종료일|납부일|발송일|소송일|의뢰일|판결일|기준일|확정일|체납시작일|최종수납일)/.test(h)) isDate[c] = true;
+      if (colBlock[c] === '조치' || /(계약번호|주민|번호|코드|계좌|전화|연락처|우편|사건|고객|조정년월|최초조정)/.test(h)) isText[c] = true;
+    });
+    const stageCount = Object.fromEntries(stageCols.map(s => [s, 0]));
+    const data = [header];
+    for (const k of order) {
+      const rec = recs.get(k), cv = {};
+      for (const cd of Canon) cv[cd.N] = FirstOf(rec, cd.From);
+      cv['계약번호'] = k; cv['포함된 파일'] = rec.Files.join(', '); cv['매핑 방법'] = rec.Map;
+      const st = {};
+      for (const n of [1, 2]) {
+        const out = FirstOf(rec, [['납부최고', `^납부최고${n}차_출력여부$`]]); let v = '';
+        if (TU(out) === 'Y') v = Done(FirstOf(rec, [['납부최고', `납부최고${n}차발송일자$`], ['납부최고', `^납부최고${n}차_출력일자$`]]));
+        else if (TU(FirstOf(rec, [['소송', `^납부최고_${n}차$`], ['가옥명도', `^납부최고_${n}차$`]])) === 'Y') v = Done(FirstOf(rec, [['소송', `^납부최고_${n}차독려일자$`], ['가옥명도', `^납부최고_${n}차독려일자$`]]));
+        else if (T(str(FirstOf(rec, [['분과심의', `^납부최고_납부최고${n}차여부$`]]))) === '1') v = '완료';
+        else if (Has(rec, '납부최고')) v = '대상';
+        st[`납부최고 ${n}차`] = v;
+      }
+      let v = '';
+      if (T(FirstOf(rec, [['가옥명도', '^해제통고.*_상태$']])) === '승인') v = Done(FirstOf(rec, [['가옥명도', '^해제통고.*_처리일시$']]));
+      else if (TU(FirstOf(rec, [['소송', '^가옥명도최고여부$']])) === 'Y' || T(str(FirstOf(rec, [['분과심의', '가옥명도최고여부$']]))) === '1') v = '완료';
+      else if (Has(rec, '가옥명도')) v = '대상';
+      st['가옥명도 최고'] = v;
+      v = '';
+      let res = FirstOf(rec, [['분과심의', '^생활안정지원심의결과$']]); const flag = TU(FirstOf(rec, [['소송', '^분과심의여부$'], ['가옥명도', '^분과심의여부$']]));
+      if (truthy(res) && T(res) !== '미심의') v = T(str(res)); else if (flag === 'Y') v = '완료'; else if (Has(rec, '분과심의')) v = '대상(미심의)';
+      st['분과심의'] = v;
+      v = '';
+      let d = FirstOf(rec, [['가옥명도', '^소송통고1차_처리일시$']]);
+      if (truthy(d)) v = Done(d); else if (TU(FirstOf(rec, [['소송', '^소송통고1차여부$']])) === 'Y' || '소송통고1' in rec.Src) v = '완료';
+      st['소송통고 1차'] = v;
+      d = FirstOf(rec, [['소송', '제소의뢰일$'], ['집계표', '1단계제소의뢰일자$'], ['분과심의', '1단계제소의뢰일자$']]);
+      st['제소의뢰(1단계)'] = truthy(d) ? Done(d) : '제소' in rec.Src ? '완료' : '';
+      d = FirstOf(rec, [['소송', '^소송통고2차_처리일시$']]);
+      st['소송통고 2차'] = truthy(d) ? Done(d) : '소송통고2' in rec.Src ? '완료' : '';
+      d = FirstOf(rec, [['소송', '본안소송일$'], ['집계표', '2단계본안소송일자$'], ['분과심의', '2단계본안소송일자$']]);
+      st['본안소송(2단계)'] = truthy(d) ? Done(d) : '';
+      d = FirstOf(rec, [['소송', '판결일자$'], ['집계표', '3단계판결일자$'], ['분과심의', '3단계판결일자$']]); res = FirstOf(rec, [['소송', '판결결과$']]);
+      st['판결(3단계)'] = truthy(d) ? Done(d) + (truthy(res) ? ` (${str(res)})` : '') : truthy(res) ? str(res) : '';
+      let last = '조치 전', cnt = 0;
+      for (const s of stageCols) { const x = st[s]; if (x && !/^대상/.test(x)) { last = s; cnt++; stageCount[s]++; } }
+      const row = [];
+      const put = x => {
+        const c = row.length;
+        if (isDate[c]) { const s = ToSerial(x); if (s != null) x = s; } else if (isText[c] && x != null) x = str(x);
+        // 원본 프로그램은 Excel에 값을 넣을 때 일반 서식 칸의 숫자 글자("0", "1")가 숫자로 바뀐다 — 같게 맞춤
+        if (!isText[c] && typeof x === 'string' && /^-?\d+(\.\d+)?$/.test(x.trim())) x = Number(x.trim());
+        row.push(x);
+      };
+      basicCols.forEach(h => put(cv[h])); stageCols.forEach(s => put(st[s])); put(last); put(cnt); commonCols.forEach(h => put(cv[h]));
+      BlockOrder.forEach(b => blockCols[b].forEach(h => put(BlockVal(rec, b, h))));
+      data.push(row);
+    }
+    return { data, header, colBlock, isDate, isText, nBasic: basicCols.length, nStage: stageCols.length, nSum: sumCols.length, fails, report, stageCount, nRows: order.length, stageCols };
+  }
+
+  // 6. 엑셀로 쓰기 — 셀 서식(색·굵게)을 쓰려고 xlsx-js-style 을 필요할 때만 불러온다
+  let XS = null;
+  function loadStyleLib() {
+    if (XS) return Promise.resolve(XS);
+    return new Promise((ok, no) => {
+      const keep = window.XLSX, s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+      s.onload = () => { XS = window.XLSX; window.XLSX = keep; ok(XS); };
+      s.onerror = () => { window.XLSX = keep; no(new Error('Excel 서식 기능(xlsx-js-style)을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.')); };
+      document.head.appendChild(s);
+    });
+  }
+  const wlen = s => [...String(s ?? '')].reduce((a, ch) => a + (ch.charCodeAt(0) > 255 ? 2 : 1), 0);
+  function sheetOf(X, aoa, opt) {
+    const ws = {}, nR = aoa.length, nC = Math.max(...aoa.map(r => r.length));
+    for (let r = 0; r < nR; r++) for (let c = 0; c < nC; c++) {
+      const x = aoa[r][c]; const ref = X.utils.encode_cell({ r, c }); const cell = opt.cell(r, c, x);
+      if (cell) ws[ref] = cell;
+    }
+    ws['!ref'] = X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: nR - 1, c: nC - 1 } });
+    return ws;
+  }
+  async function exportXlsx(used, fixMapByLabel) {
+    const X = await loadStyleLib();
+    const B = build(used, fixMapByLabel), { data, colBlock, isDate, isText, nBasic, nStage, nSum } = B;
+    const thin = { style: 'thin', color: { rgb: 'D0D0D0' } };
+    const ws = sheetOf(X, data, { cell: (r, c, x) => {
+      if (r === 0) return { v: x, t: 's', s: { font: { bold: true }, alignment: { wrapText: true, vertical: 'center' }, fill: { patternType: 'solid', fgColor: { rgb: BlockColor[colBlock[c]] } }, border: { bottom: thin } } };
+      const stage = c >= nBasic && c < nBasic + nStage;
+      if (x == null || x === '') return stage ? null : (isText[c] ? { v: '', t: 's', z: '@' } : null);
+      if (stage) return { v: x, t: 's', z: '@', s: { alignment: { horizontal: 'center' }, fill: { patternType: 'solid', fgColor: { rgb: /^대상/.test(x) ? 'FFEB9C' : 'C6EFCE' } } } };
+      if (isDate[c] && typeof x === 'number') return { v: x, t: 'n', z: 'yyyy-mm-dd' };
+      if (isText[c]) return { v: String(x), t: 's', z: '@' };
+      if (typeof x === 'number') return { v: x, t: 'n' };
+      if (typeof x === 'boolean') return { v: x, t: 'b' };
+      return { v: String(x), t: 's' };
+    } });
+    const fixedW = nBasic + nStage + nSum;
+    ws['!cols'] = data[0].map((h, c) => { if (c >= fixedW) return { wch: 14 }; let w = 0; for (const row of data.slice(0, 501)) { const x = row[c]; const s = isDate[c] && typeof x === 'number' ? 'yyyy-mm-dd' : x; w = Math.max(w, wlen(s)); } return { wch: Math.min(28, Math.max(10, w + 1)) }; });
+    ws['!rows'] = [{ hpt: 45 }];
+    ws['!autofilter'] = { ref: ws['!ref'] };
+    ws['!freeze'] = { xSplit: 2, ySplit: 1 };   // 지원되는 프로그램에서만 적용
+    // 매핑실패
+    const fh = ['파일', '순번', '계약자', '주민번호 앞 7자리', '단지명', '사유'];
+    const fd = [fh, ...(B.fails.length ? B.fails.map(f => f.map(x => x == null ? '' : str(x))) : [['매핑 실패 없음', '', '', '', '', '']])];
+    const wf = sheetOf(X, fd, { cell: (r, c, x) => r === 0 ? { v: x, t: 's', s: { font: { bold: true } } } : (x === '' ? null : { v: x, t: 's', ...(c === 3 ? { z: '@' } : {}) }) });
+    wf['!cols'] = fh.map((h, c) => ({ wch: Math.max(...fd.map(r => wlen(r[c]))) + 2 }));
+    // 설명
+    const now = new Date(), p2 = n => String(n).padStart(2, '0');
+    const lines = [['만든 시각', `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}`, '', ''],
+      ['원본 폴더', '1팀 체납관리 홈 「데이터 넣기」에 넣은 파일 (브라우저에서 통합)', '', ''],
+      ['통합 행 수(계약 수)', String(B.nRows), '', ''], ['매핑실패 행 수', String(B.fails.length), '', ''], ['', '', '', ''],
+      ['파일 코드', '파일 이름', '원본 행 수', '통합에 들어간 행 수'], ...B.report.map(x => [x[0], x[1], x[2], x[3]]), ['', '', '', ''],
+      ['조치 단계', '완료(날짜 또는 완료) 인원', '판단 근거', '']];
+    const rule = { '납부최고 1차': '납부최고서의 1차 출력여부 Y → 1차 발송일자(없으면 출력일자)', '납부최고 2차': '납부최고서의 2차 출력여부 Y → 2차 발송일자(없으면 출력일자)', '가옥명도 최고': '가옥명도최고 파일의 해제통고 상태 승인 → 처리일시', '분과심의': '분과심의 파일에 있으면 생활안정지원 심의결과(미심의면 대상)', '소송통고 1차': '가옥명도최고 파일의 소송통고 1차 처리일시, 또는 소송통고1차 파일에 있음', '제소의뢰(1단계)': '소송 파일의 제소의뢰일(없으면 집계표 소송관리 1단계)', '소송통고 2차': '소송 파일의 소송통고 2차 처리일시', '본안소송(2단계)': '소송 파일의 본안소송일(없으면 집계표 소송관리 2단계)', '판결(3단계)': '소송 파일의 판결일자와 판결결과(없으면 집계표 소송관리 3단계)' };
+    B.stageCols.forEach(s => lines.push([s, String(B.stageCount[s]), rule[s], '']));
+    lines.push(['', '', '', ''], ['읽는 법', '조치 칸: 초록 = 완료(날짜), 노랑 = 대상이지만 아직 안 함, 빈칸 = 해당 없음', '', ''],
+      ['', '[블록] 열 = 원본 파일의 열을 그대로 붙인 것. 같은 블록의 파일이 여러 개면 더 뒤 단계 파일의 값을 씀(납부최고 2차 > 1차, 소송정보 > 소송통고2차 > 제소자 > 소송통고1차)', '', ''],
+      ['', '매핑: 모든 파일을 계약번호로 연결. 계약번호 열이 아직 없는 파일만 계약자 이름 + 주민번호 앞 7자리로 임시 연결(매핑 방법 열에 표시)', '', '']);
+    const nFix = Object.values(fixMapByLabel).reduce((a, l) => a + l.length, 0);
+    if (nFix) lines.splice(4, 0, ['화면에서 고친 값', `${nFix}칸 반영 (원본 Excel은 그대로)`, '', '']);
+    const we = sheetOf(X, lines, { cell: (r, c, x) => x === '' ? null : { v: x, t: typeof x === 'number' ? 'n' : 's', ...(c === 1 ? { z: '@' } : {}), ...(c === 0 ? { s: { font: { bold: true } } } : {}) } });
+    we['!cols'] = [0, 1, 2, 3].map(c => ({ wch: Math.min(160, Math.max(...lines.map(r => wlen(r[c]))) + 2) }));
+    const wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, ws, '통합'); X.utils.book_append_sheet(wb, wf, '매핑실패'); X.utils.book_append_sheet(wb, we, '설명');
+    const name = `체납관리_통합데이터_${now.getFullYear()}${p2(now.getMonth() + 1)}${p2(now.getDate())}.xlsx`;
+    return { wb, name, X, B };
+  }
+  return { build, exportXlsx, loadStyleLib };
+})();
+// 화면에서 고친 값(FIXES)을 종류별 [행, 열, 값] 목록으로 바꾼다 (분류 엔진의 칸 위치 기준)
+function fixesByKind() {
+  const out = {}, lab = Object.fromEntries(ENGINE.KINDS.map(k => [k.label, k.key]));
+  for (const [k, f] of Object.entries(FIXES)) { const m = k.match(/^(.*)\|(\d+)\|(\d+)$/); if (!m || !lab[m[1]]) continue; const v = f.t === 'num' ? Number(String(f.v).replace(/,/g, '')) : f.v; (out[lab[m[1]]] = out[lab[m[1]]] || []).push([+m[2], +m[3], v]); }
+  return out;
+}
+$('#a01Go').addEventListener('click', async () => {
+  const m = $('#a01Msg');
+  if (!LAST || !LAST.used || DATA_INFO.kind !== 'raw') { m.className = 'dmsg err'; m.textContent = '먼저 위에 원본 Excel 9종을 넣어 주세요. (9종이 모두 들어가 화면이 바뀐 뒤에 만들 수 있습니다)'; return; }
+  m.className = 'dmsg'; m.textContent = '통합데이터를 만드는 중입니다…';
+  try {
+    const { wb, name, X, B } = await A01X.exportXlsx(LAST.used, fixesByKind());
+    X.writeFile(wb, name, { cellStyles: true });
+    m.className = 'dmsg ok'; m.textContent = `${name} 을(를) 내려받았습니다 — 계약 ${fmt(B.nRows)}건 · 열 ${B.header.length}개 · 매핑실패 ${fmt(B.fails.length)}건`;
+  } catch (e) { console.error(e); m.className = 'dmsg err'; m.textContent = e && e.message ? e.message : String(e); }
+});
+
+/* ===== ver.12: 전월 대비 추이 — 「전월 대비 추이 보기」를 눌렀을 때만 보여 주고, 전월 자료가 없으면 그 자리에서 넣는다 ===== */
+// 조치 진행 9칸 문자열 ('2' 완료 · '1' 대상 · '0' 없음) — 판결은 기준일 이전 판결일자 또는 판결결과로 완료
+function stageStr(rec, baseDate) {
+  const pjDone = rec.pjDates.some(d => d <= baseDate) || (rec.pjDates.length === 0 && !!rec.si && /승소|패소|각하|기각/.test(rec.si.판결결과));
+  const done = { ...rec.done, PJ: pjDone };
+  return STG_KEYS.map(k => done[k] ? '2' : (rec.inFile && rec.inFile[STG_FILE[k]]) ? '1' : '0').join('');
+}
+const STEP_NAMES = ['1차 납부최고', '2차 납부최고', '가옥명도최고', '분과심의', '소송통고 1차', '제소', '소송통고 2차', '소송정보입력', '판결'];
+const stFromNames = s => { const L = String(s || '').split(/\s*[,·]\s*/).map(x => x.trim()); return STEP_NAMES.map(n => L.includes(n) ? '2' : '0').join(''); };
+const monLabel = b => { const m = String(b || '').match(/^\d{4}-(\d{2})/); return m ? `${+m[1]}월` : '전월'; };
+const prevMonthEnd = b => { const d = ENGINE.toDate(b); return d ? new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 0)).toISOString().slice(0, 10) : ''; };
+let MOM = { on: false, src: '', re: false }, CUR_IDS = null;
+if (!D.pbase && Object.keys(D.prev || {}).length) { D.pbase = prevMonthEnd(D.base); MOM.src = '예시(가상) 데이터에 들어 있는 전월 자료 (여현서 A05 지표계산)'; }
+const hasMom = () => Object.keys(D.prev || {}).length > 0;
+function renderMom() {
+  const PM = monLabel(D.pbase), CM = monLabel(D.base);
+  $('#momTitle').textContent = hasMom() && MOM.on ? `${PM} → ${CM} 전월 대비 추이` : '전월 대비 추이';
+  $('#momBtn').textContent = MOM.on ? '전월 대비 추이 숨기기' : '전월 대비 추이 보기';
+  $('#momSrc').textContent = MOM.on && hasMom() && !MOM.re ? `전체 기준 (필터와 무관) · 위 숫자 카드에도 ${PM} 대비 증감이 표시됩니다 · 전월 자료: ${MOM.src}` : MOM.on ? '전월 자료를 넣으면 비교합니다' : '필요할 때만 봅니다 · 버튼을 누르면 전월 자료와 비교합니다';
+  const showIn = MOM.on && (!hasMom() || MOM.re), showOut = MOM.on && hasMom() && !MOM.re;
+  $('#momIn').hidden = !showIn; $('#momOut').hidden = !showOut;
+  if (showIn && !$('#momBase').value) $('#momBase').value = prevMonthEnd(D.base);
+  if (!showOut) return;
+  const rows = D.flow.filter(f => !(f[1] === '' && f[2] == null));
+  $('#flow').innerHTML = rows.map((f, i, a) => {
+    const end = i === 0 || i === a.length - 1, kind = f[3] || (end ? 'end' : f[1] === '' ? 'amt' : f[1] > 0 ? 'plus' : 'minus');
+    const n = f[1] === '' ? '·' : kind === 'end' || kind === 'keep' ? fmt(f[1]) : (f[1] > 0 ? '+' : f[1] < 0 ? '−' : '') + fmt(Math.abs(f[1]));
+    const a2 = f[2] == null ? '체납액 자료 없음' : (kind === 'end' ? '' : kind === 'keep' ? '금액 변동 ' : '') + (kind === 'end' ? '' : f[2] > 0 ? '+' : f[2] < 0 ? '−' : '') + won(Math.abs(f[2])) + '원';
+    return `<div class="fl ${end ? 'end' : ''}"><div class="l">${escH(String(f[0]).replace(/^\(±\)\s*/, ''))}</div><div class="v">${n}<small style="font-size:12px;font-weight:500;color:var(--ink3)"> 세대</small></div><div class="l">${a2}</div></div>`;
+  }).join('');
+  $('#momDone').innerHTML = `<p class="src" style="margin:0">${D.done.length ? `이번 달에 새로 완료한 조치(전월 대비)는 「③ 월 결산 보고」의 이번 달 수행 실적에서 볼 수 있습니다. ` : ''}${D.pbase ? `전월 기준일 ${escH(D.pbase)}` : ''}${MOM.overlap ? ` · 두 달 모두 있는 세대 ${fmt(MOM.overlap)}` : ''}</p>`;
+}
+// 전월 자료(분류결과 또는 원본 9종)로 전월 지표·흐름·수행 실적을 만든다. 세대는 계약번호로 맞춘다
+function buildMom(prevRows, pbase, src, opt = {}) {
+  if (!CUR_IDS || CUR_IDS.length !== D.hh.length) throw new Error('예시 데이터에는 전월 자료를 새로 넣을 수 없습니다. 「데이터 넣기」에서 이번 달 데이터를 먼저 넣어 주세요.');
+  const cur = D.hh.map((r, i) => ({ id: CUR_IDS[i], state: r[6], amt: r[4], st: r[10], cls: r[5], next: r[7] }));
+  const pm = new Map(prevRows.map(p => [p.id, p])), cm = new Map(cur.map(c => [c.id, c]));
+  const both = cur.filter(c => pm.has(c.id)), gone = prevRows.filter(p => !cm.has(p.id)), neu = cur.filter(c => !pm.has(c.id));
+  if (!both.length) throw new Error('전월 자료와 이번 달 자료에 같은 계약번호가 하나도 없습니다. 같은 사업의 전월 자료가 맞는지 확인해 주세요.');
+  const hasAmt = prevRows.every(p => p.amt != null), sumA = a => a.reduce((x, r) => x + (+r.amt || 0), 0), cnt = (a, k) => a.filter(r => r.state === k).length;
+  const prev = {
+    '체납세대 수': [prevRows.length, cur.length], '그중 누락 의심(방치)': [cnt(prevRows, 0), cnt(cur, 0)],
+    '관리필요세대': [cnt(prevRows, 0) + cnt(prevRows, 1), cnt(cur, 0) + cnt(cur, 1)], '예외분류(익월 재검토) 세대': [cnt(prevRows, 2), cnt(cur, 2)], '관리중 세대': [cnt(prevRows, 3), cnt(cur, 3)],
+  };
+  if (hasAmt) prev['체납금액 (총액)'] = [sumA(prevRows), sumA(cur)];
+  const PM = monLabel(pbase), CM = monLabel(D.base);
+  const flow = [[`${PM} 체납세대`, prevRows.length, hasAmt ? sumA(prevRows) : null, 'end'],
+    ['(−) 이번 달 목록에서 빠짐 (해소)', -gone.length, hasAmt ? -sumA(gone) : null, 'minus'],
+    ['(+) 이번 달 새로 들어옴 (신규)', neu.length, sumA(neu), 'plus'],
+    ['두 달 계속 체납', both.length, hasAmt ? sumA(both) - both.reduce((x, c) => x + (+pm.get(c.id).amt || 0), 0) : null, 'keep'],
+    [`${CM} 체납세대`, cur.length, sumA(cur), 'end']];
+  const prevCls = {}, prevNext = {};
+  prevRows.forEach(p => { prevCls[p.cls] = (prevCls[p.cls] || 0) + 1; if (p.state < 2 && p.next) prevNext[p.next] = (prevNext[p.next] || 0) + 1; });
+  // 이번 달 수행 실적: 두 달 모두 있는 세대 중 전월에는 완료가 아니던 단계가 이번 달에 완료된 경우
+  const done = [];
+  if (prevRows.every(p => p.st)) D.STAGES.forEach((s, i) => {
+    if ((opt.skip || []).includes(i)) return;   // 예전 형식 분류결과에 없는 단계(판결)는 비교하지 않음
+    const hit = both.filter(c => c.st && c.st[i] === '2' && pm.get(c.id).st[i] !== '2');
+    if (hit.length) done.push([s, hit.length, hit.filter(c => pm.get(c.id).state === 0).length]);
+  });
+  done.sort((a, b) => b[1] - a[1]);
+  Object.assign(D, { prev, flow, prevCls, prevNext, done, pbase });
+  MOM = { on: true, src, re: false, overlap: both.length, approx: !!opt.approx };
+  renderStatic(); render();
+  return `${PM} 자료로 비교했습니다 — 두 달 모두 있는 세대 ${fmt(both.length)} · 해소 ${fmt(gone.length)} · 신규 ${fmt(neu.length)}${hasAmt ? '' : ' (체납액은 통합데이터가 없어 비교하지 않음)'}`;
+}
+async function loadPrev(fileList) {
+  needXLSX();
+  if (LOADED !== 'data') throw new Error('먼저 「데이터 넣기」에서 이번 달 데이터를 넣어 주세요.');
+  const items = await Promise.all([...fileList].filter(f => /\.xlsx$/i.test(f.name)).map(readWb));
+  if (!items.length) throw new Error('전월 Excel(.xlsx) 파일을 넣어 주세요.');
+  let pbase = $('#momBase').value, rows, src; const opt = {};
+  const cls = items.find(i => i.wb.SheetNames.includes('전체 결과'));
+  if (cls) {
+    // 전월 분류결과 (+ 통합데이터가 있으면 체납액)
+    const SUM = cls.wb.Sheets['요약'] ? XLSX.utils.sheet_to_json(cls.wb.Sheets['요약'], { header: 1, defval: '' }) : [];
+    const b = SUM.find(r => String(r[0]).trim() === '기준일'); if (b && ENGINE.toDate(b[1])) pbase = ENGINE.ymd(ENGINE.toDate(b[1]));
+    const CR = XLSX.utils.sheet_to_json(cls.wb.Sheets['전체 결과'], { defval: '' });
+    if (!CR.length || !('계약번호' in CR[0]) || !('최종분류' in CR[0])) throw new Error('전월 분류결과 「전체 결과」 시트에 계약번호·최종분류 열이 없습니다.');
+    const integ = items.find(i => i !== cls && i.wb.SheetNames.includes('통합'));
+    let amt = null;
+    if (integ) { const IR = XLSX.utils.sheet_to_json(integ.wb.Sheets['통합'], { header: 1, raw: true, defval: '' }); const h = (IR[0] || []).map(x => String(x).trim()), ci = h.indexOf('계약번호'), ca = h.indexOf('체납액'); if (ci >= 0 && ca >= 0) amt = new Map(IR.slice(1).map(r => [String(r[ci]).trim(), Number(r[ca]) || 0])); }
+    const own = '조치 진행(분류 기준)' in CR[0], names = '수행 완료 단계' in CR[0];
+    rows = CR.filter(r => String(r['계약번호']).trim()).map(r => { const id = String(r['계약번호']).trim(); return { id, cls: String(r['최종분류']), next: String(r['다음 할 일'] || ''), state: stateOf(r), amt: amt ? (amt.get(id) ?? 0) : null,
+      st: own ? String(r['조치 진행(분류 기준)'] ?? '').replace(/\D/g, '').padStart(9, '0') : names ? stFromNames(r['수행 완료 단계']) : '' }; });
+    src = [cls.name, integ && integ.name].filter(Boolean).join(' + ');
+    if (!own && names) { opt.approx = true; if (!rows.some(r => r.st[8] === '2')) opt.skip = [8]; }
+  } else {
+    // 전월 원본 9종 → 전월 기준일로 다시 분류
+    const pb = ENGINE.toDate(pbase); if (!pb) throw new Error('전월 기준일(월말 결산일)을 입력해 주세요.');
+    const P = ENGINE.plan(items);
+    if (P.need) throw new Error('전월 원본에 같은 종류 파일이 여러 개이거나 종류가 애매한(또는 알 수 없는) 파일이 있습니다. 파일 이름을 확인해 전월 9종만 넣어 주세요.');
+    const R = ENGINE.run(items, pb, { ...D.crit }, undefined, {});
+    rows = R.out.map(({ rec, row }) => ({ id: rec.계약번호, cls: row.최종분류, next: row['다음 할 일'], state: stateOf(row), amt: rec.총합계, st: stageStr(rec, pb) }));
+    src = `전월 원본 ${Object.keys(R.files).length}종 (이 페이지가 전월 기준일로 분류)`;
+  }
+  if (!pbase) pbase = prevMonthEnd(D.base);
+  if (pbase >= D.base) throw new Error(`전월 자료의 기준일(${pbase})이 이번 달 기준일(${D.base})보다 늦거나 같습니다. 전월 자료가 맞는지 확인해 주세요.`);
+  return buildMom(rows, pbase, src, opt);
+}
+$('#momBtn').addEventListener('click', () => { MOM.on = !MOM.on; MOM.re = false; renderMom(); render(); });
+$('#momRe').addEventListener('click', () => { MOM.re = true; $('#msgM').textContent = ''; renderMom(); });
+wireDrop('#dropM', '#pickM', '#msgM', loadPrev);
 wireDrop('#dropA', '#pickA', '#msgA', loadResults);
 wireDrop('#dropB', '#pickB', '#msgB', loadRaw);
 (function () { const t = new Date(); const d = new Date(Date.UTC(t.getFullYear(), t.getMonth(), 0)); $('#dBase').value = d.toISOString().slice(0, 10); })();
