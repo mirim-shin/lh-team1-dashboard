@@ -15,4 +15,4 @@
 
 ## 출처
 
-팀 작업 저장소(비공개)의 `dashboard/index_ver.14.html`을 그대로 옮긴 것입니다. 원본이 바뀌면 이 저장소의 `index.html`을 새 파일로 바꿔 올립니다.
+팀 작업 저장소(비공개)의 `dashboard/index_ver.15.html`을 그대로 옮긴 것입니다. 원본이 바뀌면 이 저장소의 `index.html`을 새 파일로 바꿔 올립니다.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.14</title>
+<title>1팀 체납관리 홈 ver.15</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -265,9 +265,9 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
           </div>
           <div id="momIn" class="mt" hidden>
             <p class="src">비교할 <b>전월 자료</b>를 넣어 주세요. 이 브라우저 안에서만 읽고 어디에도 보내지 않습니다.</p>
-            <ul class="rules"><li><b>전월 분류결과</b> <code>체납관리_분류결과_YYYYMM.xlsx</code> (「전체 결과」 시트) — 통합 실행·분류도구가 만든 지난달 결과. 체납액까지 비교하려면 같은 달 <code>체납관리_통합데이터_YYYYMM.xlsx</code>도 함께 넣으세요.</li><li>또는 <b>전월 원본 Excel 9종</b> — 이 페이지가 전월 기준일로 다시 분류합니다.</li></ul>
+            <ul class="rules"><li><b>전월 분류결과</b> <code>체납관리_분류결과_YYYYMM.xlsx</code> (「전체 결과」 시트) — 통합 실행·분류도구가 만든 지난달 결과. 체납액까지 비교하려면 같은 달 <code>체납관리_통합데이터_YYYYMM.xlsx</code>도 함께 넣으세요.</li><li>또는 <b>전월 통합데이터만</b> <code>체납관리_통합데이터_YYYYMM.xlsx</code> (「통합」 시트) — 이 페이지가 전월 기준일로 신미림 분류 규칙에 맞춰 다시 분류합니다. 체납액도 비교됩니다.</li><li>또는 <b>전월 원본 Excel 9종</b> — 이 페이지가 전월 기준일로 다시 분류합니다.</li></ul>
             <div class="dline"><label for="momBase">전월 기준일(월말 결산일)</label><input type="date" id="momBase"><span style="color:var(--ink3)">분류결과 파일의 「요약」 시트에 기준일이 있으면 그 날짜를 씁니다</span></div>
-            <div class="drop" id="dropM">전월 파일을 여기에 끌어다 놓거나 눌러서 선택<br><small>분류결과(+통합데이터) 또는 원본 9종 · 이름에 "오류"·"테스트"가 들어간 파일도 인식</small></div>
+            <div class="drop" id="dropM">전월 파일을 여기에 끌어다 놓거나 눌러서 선택<br><small>분류결과(+통합데이터) · 통합데이터만 · 원본 9종 중 하나 · 이름에 "오류"·"테스트"가 들어간 파일도 인식</small></div>
             <input type="file" id="pickM" accept=".xlsx" multiple hidden>
             <div class="dmsg" id="msgM"></div>
           </div>
@@ -979,7 +979,56 @@ function run(items, baseDate, S, assign, fixes){
   const out = [...recs.values()].map(rec => ({ rec, row: classify(rec, baseDate, S) }));
   return { out, log, counts, recsSize: recs.size, files: Object.fromEntries(Object.entries(state.files).map(([k, v]) => [k, v.name])), skipped, unknown, KINDS, notUsed, missing, sheetIssues };
 }
-return { run, plan, kindsOf, KINDS, toDate, ymd, used: () => ({ files: { ...state.files }, sheets: { ...state.sheetUsed } }) };
+// ver.15: 통합데이터(김태경 님 A01 「통합」 시트)만으로 분류한다 — 통합 실행 ver.2의 Build-Recs와 같은 규칙
+//   조치 완료는 김태경 님 '조치 진행' 열이 아니라 통합데이터 안의 원본 열([블록] 열)과 '포함된 파일'로 신미림 분류 규칙에 따라 다시 판단
+const CODE2KEY = { '집계표': 'J', '납부1': 'P1', '납부2': 'P2', '가옥명도': 'GA', '분과심의': 'BG', '소송통고1': 'S1', '제소': 'JE', '소송통고2': 'S2', '소송정보': 'SI' };
+const LIT_FILES = ['분과심의', '소송통고1', '제소', '소송통고2', '소송정보'];
+function runInteg(rows, baseDate, S){
+  const out = [];
+  for (const r of rows){
+    const g = k => (r[k] === undefined ? null : r[k]), T = k => str(g(k));
+    const no = T('계약번호'); if (!no) continue;
+    const files = T('포함된 파일').split(/,\s*/).filter(Boolean), has = {}, inFile = {};
+    files.forEach(f => { has[f] = true; if (CODE2KEY[f]) inFile[CODE2KEY[f]] = true; });
+    const rec = { 계약번호: no, 계약자: T('계약자'), 지자체명: T('지자체명'), 구분: T('계약/해약'),
+      개월: num(g('체납개월건수')) ?? 0, 임대료: num(g('현재월임대료')) ?? 0, 납부3: num(g('최근3개월납부금액')) ?? 0, 총합계: num(g('체납액')) ?? 0, 부담금: num(g('보증금')) ?? 0,
+      최근납부일: toDate(g('최근납부일')), dates: [], done: {}, bg: has['분과심의'] ? { 구분: T('[분과심의] 구분') } : null, si: null, pjDates: [], inFile };
+    const stp = T('[납부최고] 납부최고단계');
+    if (/1차완료|2차대상|2차완료/.test(stp)) rec.done.P1 = true;
+    if (/2차완료/.test(stp)) rec.done.P2 = true;
+    if (T('[가옥명도] 해제통고및가옥명도최고_상태') === '승인') rec.done.GA = true;
+    if (has['분과심의']) rec.done.BG = true;
+    if (has['소송통고1']) rec.done.S1 = true;
+    let docNo = T('[소송] 제소의뢰(1단계)_문서번호'); if (docNo === '선택') docNo = '';
+    if (has['제소'] && (toDate(g('제소의뢰(1단계)')) || docNo)) rec.done.JE = true;
+    if (has['소송통고2']) rec.done.S2 = true;
+    let caseNo = T('[소송] 본안소송시입력(2단계)_사건번호'); if (caseNo === '선택') caseNo = '';
+    if (has['소송정보'] && caseNo) rec.done.SI = true;
+    if (has['소송정보']) {
+      rec.si = { 판결결과: T('[소송] 판결시입력(3단계)_판결결과'), 판결일자: null };
+      const pj = toDate(T('판결(3단계)').slice(0, 10)); if (pj) { rec.pjDates.push(pj); rec.si.판결일자 = pj; }
+    }
+    const hasLit = files.some(f => LIT_FILES.includes(f));
+    const AD = (label, v) => { const d = toDate(v); if (d) rec.dates.push({ label, d }); };
+    AD('최종독려', g('최종독려일자')); AD('제소의뢰(집계표)', g('소송관리 1단계 제소의뢰일자')); AD('본안소송(집계표)', g('소송관리 2단계 본안소송일자')); AD('판결(집계표)', g('소송관리 3단계 판결일자'));
+    AD('1차 납부최고', g('납부최고 1차 독려일자')); AD('1차 납부최고', g('[납부최고] 납부최고1차_우체국전송일자')); AD('1차 납부최고', g('납부최고 1차'));
+    AD('2차 납부최고', g('납부최고 2차 독려일자')); AD('2차 납부최고', g('[납부최고] 납부최고2차_우체국전송일자')); AD('2차 납부최고', g('납부최고 2차'));
+    AD('가옥명도최고', g('[가옥명도] 해제통고및가옥명도최고_처리일시')); AD('분과심의 확정', g('[분과심의] 확정정보_확정일자'));
+    if (hasLit) { AD('제소의뢰', g('제소의뢰(1단계)')); AD('제소의뢰', g('[소송] 제소의뢰(1단계)_처리일시')); AD('2차 소송통고', g('소송통고 2차')); AD('본안소송', g('본안소송(2단계)')); AD('판결', T('판결(3단계)').slice(0, 10)); }
+    // 체납집계표 소송세대(Y) → 집계표 기준으로 소송 단계까지 거친 것으로 봄
+    const L = { Y: T('소송세대여부').toUpperCase() === 'Y', JE: !!toDate(g('소송관리 1단계 제소의뢰일자')), SI: !!toDate(g('소송관리 2단계 본안소송일자')), PJ: !!toDate(g('소송관리 3단계 판결일자')), PJdate: toDate(g('소송관리 3단계 판결일자')) };
+    rec.legacy = L;
+    if (L.Y) {
+      ['P1', 'P2', 'GA', 'BG', 'S1', 'JE'].forEach(k => rec.done[k] = true);
+      if (L.SI || L.PJ) { rec.done.S2 = true; rec.done.SI = true; }
+      if (L.PJ && rec.pjDates.length === 0) rec.pjDates.push(L.PJdate);
+      rec.legacyOnly = !(rec.bg || hasLit);
+    }
+    out.push({ rec, row: classify(rec, baseDate, S) });
+  }
+  return { out };
+}
+return { run, runInteg, plan, kindsOf, KINDS, toDate, ymd, used: () => ({ files: { ...state.files }, sheets: { ...state.sheetUsed } }) };
 })();
 /* ===== ver.5 데이터 넣기: 화면 쪽 (넣은 Excel → 대시보드 데이터 D로 바꿔 다시 그림) ===== */
 const escH = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1710,6 +1759,16 @@ async function loadPrev(fileList) {
       st: own ? String(r['조치 진행(분류 기준)'] ?? '').replace(/\D/g, '').padStart(9, '0') : names ? stFromNames(r['수행 완료 단계']) : '' }; });
     src = [cls.name, integ && integ.name].filter(Boolean).join(' + ');
     if (!own && names) { opt.approx = true; if (!rows.some(r => r.st[8] === '2')) opt.skip = [8]; }
+  } else if (items.some(i => i.wb.SheetNames.includes('통합'))) {
+    // ver.15: 전월 통합데이터만 넣어도 비교 — 통합데이터를 전월 기준일로 신미림 분류 규칙에 맞춰 다시 분류 (통합 실행 ver.2와 같은 규칙)
+    const integ = items.filter(i => i.wb.SheetNames.includes('통합'));
+    if (integ.length > 1) throw new Error(`통합데이터가 ${integ.length}개입니다 (${integ.map(i => i.name).join(', ')}). 전월 통합데이터 하나만 넣어 주세요.`);
+    const pb = ENGINE.toDate(pbase); if (!pb) throw new Error('전월 기준일(월말 결산일)을 입력해 주세요.');
+    const IR = XLSX.utils.sheet_to_json(integ[0].wb.Sheets['통합'], { defval: null, raw: true });
+    if (!IR.length || !('계약번호' in IR[0]) || !('포함된 파일' in IR[0])) throw new Error('「통합」 시트가 김태경 님 A01 통합데이터 형식이 아닙니다 (계약번호·포함된 파일 열이 없음).');
+    const R = ENGINE.runInteg(IR, pb, { ...D.crit });
+    rows = R.out.map(({ rec, row }) => ({ id: rec.계약번호, cls: row.최종분류, next: row['다음 할 일'], state: stateOf(row), amt: rec.총합계, st: stageStr(rec, pb) }));
+    src = `${integ[0].name} (전월 기준일 ${ENGINE.ymd(pb)}로 신미림 분류 규칙에 맞춰 다시 분류)`;
   } else {
     // 전월 원본 9종 → 전월 기준일로 다시 분류
     const pb = ENGINE.toDate(pbase); if (!pb) throw new Error('전월 기준일(월말 결산일)을 입력해 주세요.');
