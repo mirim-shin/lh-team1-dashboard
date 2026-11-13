@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.2</title>
+<title>1팀 체납관리 홈 ver.3</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
 :root{
@@ -164,6 +164,15 @@ code{background:var(--line2);border-radius:5px;padding:1px 5px;font-size:12px}
 .legend span.clk{cursor:pointer}
 .xchip{display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:1px 6px 1px 8px;border-radius:10px;background:var(--line2);color:var(--ink2);font-size:12px;font-weight:500}
 .xchip button{border:0;background:none;cursor:pointer;color:var(--ink3);padding:0 2px;font-size:13px;line-height:1}
+/* ver.3: 김태경 님 대시보드(arrears-web) 요소 — 보조 KPI, 체납액 상위 지자체, 세대별 조치 진행 점 */
+.g4{grid-template-columns:repeat(4,1fr)}
+@media (max-width:1080px){.g4{grid-template-columns:repeat(2,1fr)}}
+.dt{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:middle}
+.dt.d2{background:var(--bar)}
+.dt.d1{border:2px solid var(--s-hold);background:transparent}
+.dt.d0{width:9px;height:2px;border-radius:1px;background:var(--line)}
+td.dc,th.dc{text-align:center;padding-left:4px;padding-right:4px}
+th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-width:56px;font-size:10.5px}
 </style>
 </head>
 <body>
@@ -207,6 +216,7 @@ code{background:var(--line2);border-radius:5px;padding:1px 5px;font-size:12px}
           <a class="pc" href="#a05" style="--c:var(--yeo)"><div class="step">③ A05</div><b>월 결산 보고</b><div class="own">여현서 · 지표 계산 → 보고서</div><div class="big" id="p3"></div><div class="out">→ 월 체납관리 현황 보고서</div></a>
         </div>
         <div class="grid g6" id="kpis"></div>
+        <div class="grid g4 mt" id="kpis2"></div>
         <div class="grid g2 mt">
           <div class="card"><h3>최종분류별 관리 상태</h3><p class="src">세대 수 · 신미림 분류 기준을 여현서 10월 지표가 이어받은 결과</p><div class="legend" id="lgState"></div><div class="bars" id="chCls"></div></div>
           <div class="card"><h3>다음에 할 조치</h3><p class="src">관리필요 세대의 다음 할 일 · 빨강은 2개월 넘게 진행이 없는 누락 의심</p><div class="bars" id="chNextHome"></div></div>
@@ -246,6 +256,7 @@ code{background:var(--line2);border-radius:5px;padding:1px 5px;font-size:12px}
           <div>
             <div class="card"><h3>다음에 할 조치 (11월 계획 근거)</h3><p class="src">관리필요 세대 · 괄호는 9월 세대 수(전체 기준)</p><div class="bars" id="chNext"></div></div>
             <div class="card mt"><h3>10월에 수행한 조치</h3><p class="src">전체 기준 (필터와 무관) · 가상 실적</p><div class="tw"><table id="tbDone"></table></div></div>
+            <div class="card mt"><h3>지자체별 체납액 상위 10</h3><p class="src">체납액 큰 순 · 오른쪽 숫자 단위 만원</p><div class="bars" id="chAmt"></div></div>
           </div>
         </div>
       </section>
@@ -257,8 +268,11 @@ code{background:var(--line2);border-radius:5px;padding:1px 5px;font-size:12px}
             <input id="q" type="search" placeholder="계약번호 끝 3자리 · 지자체 · 조치 검색" style="min-width:240px">
             <select id="tCls"><option value="">최종분류 전체</option></select>
             <select id="tState"><option value="">관리 상태 전체</option></select>
+            <select id="tTerm"><option value="">체납기간 전체</option><option value="0">3개월 미만</option><option value="1">3~5개월 (단기)</option><option value="2">6~11개월 (중기)</option><option value="3">12개월 이상 (장기)</option></select>
+            <select id="tCur"><option value="">현재 단계 전체</option></select>
             <span class="cnt" id="tCnt"></span>
           </div>
+          <div class="legend"><span><i class="dt d2"></i>완료</span><span><i class="dt d1"></i>대상(아직 안 함)</span><span><i class="dt d0"></i>해당 없음</span><span style="color:var(--ink3)">· 오른쪽 조치 진행 열은 김태경 님 A01 통합데이터 기준</span></div>
           <div class="tw"><table id="tbList"></table></div>
           <button class="more" id="more" hidden>더 보기</button>
         </div>
@@ -318,7 +332,7 @@ function bars(id, items, opt = {}) {
     const r = el('div', 'br'); r.append(el('div', 'lb', it.label)); r.firstChild.title = it.label.replace(/<[^>]+>/g, '');
     if (it.go) { r.firstChild.classList.add('clk'); r.firstChild.title += ' · 눌러서 세대 목록 보기'; r.firstChild.addEventListener('click', () => goList(it.go)); }
     const tr = el('div', 'tr');
-    for (const s of it.segs) { if (!s.v) continue; const g = el('div', 'sg'); g.style.width = (s.v / max * 100) + '%'; g.style.background = `var(${s.color})`; g.dataset.tip = `<b>${it.label.replace(/<[^>]+>/g, '')}</b><br>${s.name} ${fmt(s.v)}세대` + (tot ? ` (${Math.round(s.v / tot * 100)}%)` : ''); if (s.go) { g.classList.add('clk'); g.dataset.tip += '<br><span style="opacity:.75">눌러서 세대 목록 보기</span>'; g.addEventListener('click', () => goList(s.go)); } tr.append(g); }
+    for (const s of it.segs) { if (!s.v) continue; const g = el('div', 'sg'); g.style.width = (s.v / max * 100) + '%'; g.style.background = `var(${s.color})`; g.dataset.tip = s.tip ? s.tip : `<b>${it.label.replace(/<[^>]+>/g, '')}</b><br>${s.name} ${fmt(s.v)}세대` + (tot ? ` (${Math.round(s.v / tot * 100)}%)` : ''); if (s.go) { g.classList.add('clk'); g.dataset.tip += '<br><span style="opacity:.75">눌러서 세대 목록 보기</span>'; g.addEventListener('click', () => goList(s.go)); } tr.append(g); }
     r.append(tr, el('div', 'n', fmt(it.shown ?? tot) + (it.note ? `<span style="color:var(--ink3);font-weight:400"> ${it.note}</span>` : ''))); box.append(r);
   }
 }
@@ -326,6 +340,14 @@ const stateSegs = (rows, go) => STATES.map(([name, color], k) => ({ v: rows.filt
 const legend = id => { $(id).innerHTML = STATES.map(([n, c], k) => `<span class="clk" data-k="${k}" title="눌러서 ${n} 세대 목록 보기"><i style="background:var(${c})"></i>${n}</span>`).join(''); };
 const NX = k => ({ label: '다음 할 일: ' + k, fn: r => r[7] === k });
 const KGO = [{}, {}, { state: 0 }, { lx: { label: '관리필요(누락 포함)', fn: r => r[6] < 2 } }, { state: 2 }, { state: 3 }];
+/* ver.3: 세대별 조치 진행(r[10] = 9단계 '2'완료 '1'대상 '0'해당없음, 김태경 통합데이터) */
+const SHORT9 = ['납부최고 1차', '납부최고 2차', '가옥명도', '분과심의', '소송통고 1차', '제소의뢰', '소송통고 2차', '본안소송', '판결'];
+const TERM = [['3개월 미만', r => r[3] < 3], ['3~5개월 (단기)', r => r[3] >= 3 && r[3] <= 5], ['6~11개월 (중기)', r => r[3] >= 6 && r[3] <= 11], ['12개월 이상 (장기)', r => r[3] >= 12]];
+D.hh.forEach(r => { r[13] = (r[10] || '').split('').filter(x => x === '2').length; });
+const LIT = r => (r[10] || '')[5] === '2';
+const NOACT = r => !!r[10] && !r[10].includes('2');
+let KGO2 = [];
+const dots = r => SHORT9.map((n, i) => { const v = (r[10] || '')[i]; const k = v === '2' ? 'd2' : v === '1' ? 'd1' : 'd0'; const t = v === '2' ? '완료' : v === '1' ? '대상(아직 안 함)' : r[10] ? '해당 없음' : '통합데이터에 없음'; return `<td class="dc"><span class="dt ${k}" data-tip="<b>${n}</b><br>${t}"></span></td>`; }).join('');
 
 function render() {
   const H = D.hh.filter(r => pass(r[1], r[2])), I = D.integ.filter(r => pass(r[0], r[1]));
@@ -342,6 +364,13 @@ function render() {
     ['누락 의심', fmt(st(0)), '세대', delta(st(0), '그중 누락 의심(방치)', '세대'), '--s-miss'], ['관리필요', fmt(need), '세대', delta(need, '관리필요세대', '세대'), '--s-need'],
     ['익월 재검토', fmt(st(2)), '세대', delta(st(2), '예외분류(익월 재검토) 세대', '세대'), '--s-hold'], ['관리중', fmt(st(3)), '세대', delta(st(3), '관리중 세대', '세대'), '--s-ok']];
   $('#kpis').innerHTML = K.map((k, i) => `<div class="kpi clk" data-i="${i}" title="눌러서 세대 목록 보기"><div class="l">${k[4] ? `<i style="background:var(${k[4]})"></i>` : ''}${k[0]}${k[0] === '관리필요' ? ' <span style="color:var(--ink3)">(누락 포함)</span>' : ''}</div><div class="v">${k[1]}<small>${k[2]}</small></div><div class="d">${k[3]}</div></div>`).join('');
+  /* ver.3: 보조 KPI (김태경 님 대시보드 요소) */
+  const avgM = H.length ? H.reduce((a, r) => a + r[3], 0) / H.length : 0;
+  const K2 = [['평균 체납기간', avgM.toFixed(1), '개월', '체납개월 평균', null], ['1건 평균 체납액', won(H.length ? sum / H.length : 0), '원', '체납액 ÷ 세대 수', null],
+    ['소송 단계 진입', fmt(H.filter(LIT).length), '세대', '제소의뢰까지 완료', { lx: { label: '소송 단계 진입(제소의뢰 이후)', fn: LIT } }],
+    ['아직 조치 전', fmt(H.filter(NOACT).length), '세대', '완료한 조치 단계 없음', { lx: { label: '아직 조치 전', fn: NOACT } }]];
+  KGO2 = K2.map(k => k[4]);
+  $('#kpis2').innerHTML = K2.map((k, i) => `<div class="kpi${k[4] ? ' clk' : ''}" data-j="${i}"${k[4] ? ' title="눌러서 세대 목록 보기"' : ''}><div class="l">${k[0]}</div><div class="v">${k[1]}<small>${k[2]}</small></div><div class="d">${k[3]}</div></div>`).join('');
   /* classification */
   const cls = CLS.map(c => ({ label: c, go: { cls: c }, segs: stateSegs(H.filter(r => r[5] === c), { cls: c }) })).filter(i => i.segs.some(s => s.v));
   bars('#chCls', cls); bars('#chCls2', cls);
@@ -360,6 +389,9 @@ function render() {
   /* A05 */
   const gus = [...new Set(H.map(r => r[1]))].map(g => ({ label: g.replace(/^전세\((.+)\)$/, '$1'), go: { gu: g }, segs: stateSegs(H.filter(r => r[1] === g), { gu: g }) })).sort((a, b) => b.segs.reduce((x, s) => x + s.v, 0) - a.segs.reduce((x, s) => x + s.v, 0));
   bars('#chGu', gus, { lw: 96 });
+  /* ver.3: 지자체별 체납액 상위 10 (김태경 님 대시보드 요소) */
+  const amt = [...new Set(H.map(r => r[1]))].map(g => { const rr = H.filter(r => r[1] === g); return { g, a: rr.reduce((x, r) => x + r[4], 0), n: rr.length }; }).sort((a, b) => b.a - a.a).slice(0, 10);
+  bars('#chAmt', amt.map(o => { const l = o.g.replace(/^전세\((.+)\)$/, '$1'); return { label: l, go: { gu: o.g }, shown: Math.round(o.a / 1e4), segs: [{ v: o.a, color: '--bar', name: '체납액', go: { gu: o.g }, tip: `<b>${l}</b><br>체납액 ${fmt(Math.round(o.a / 1e4))}만원 · ${fmt(o.n)}세대` }] }; }), { lw: 96 });
   listPage = 1; renderList();
 }
 
@@ -373,6 +405,7 @@ function renderStatic() {
   $('#tbDone').innerHTML = '<tr><th>수행 조치</th><th class="r">세대</th><th class="r">그중 9월 누락 의심</th></tr>' + D.done.map(d => `<tr><td>${d[0]}</td><td class="r">${fmt(d[1])}</td><td class="r">${fmt(d[2])}</td></tr>`).join('');
   const c = D.crit, cr = [['단기 · 중기 · 장기 체납 시작', `${c['단기체납_시작_개월']} · ${c['중기체납_시작_개월']} · ${c['장기체납_시작_개월']}개월`], ['특수채권 (해약) 최소 체납', `${c['특수채권_최소_체납개월']}개월`], ['분과심의 대상 보증금잠식률', `${c['분과심의_보증금잠식률_기준_퍼센트']}% 이상`], ['예외(보류): 최근 3개월 납부액', `월임대료 × ${c['예외_최근3개월납부_월임대료_배수']} 이상`], ['소송유예: 최근 3개월 납부액', `월임대료 × ${c['소송유예_최근3개월납부_월임대료_배수']} 이상`], ['강제집행: 최근 3개월 납부액', `월임대료 × ${c['강제집행_최근3개월납부_월임대료_배수_이하']} 이하`], ['누락 의심: 마지막 조치 후', `${c['누락_판단_개월']}개월 이상`]];
   $('#crit').innerHTML = cr.map(x => `<div>${x[0]}</div><div>${x[1]}</div>`).join('');
+  $('#tCur').innerHTML += [...new Set(D.hh.map(r => r[9]))].filter(Boolean).map(c => `<option>${c}</option>`).join('');
   $('#tCls').innerHTML += CLS.map(c => `<option>${c}</option>`).join(''); $('#tState').innerHTML += STATES.map((s, i) => `<option value="${i}">${s[0]}</option>`).join('');
 }
 
@@ -382,26 +415,27 @@ let listPage = 1, sortK = 4, sortD = -1;
 let LX = null;
 function goList(o) {
   o = o || {};
-  $('#q').value = ''; $('#tCls').value = o.cls || ''; $('#tState').value = o.state == null ? '' : String(o.state); LX = o.lx || null;
+  $('#q').value = ''; $('#tTerm').value = ''; $('#tCur').value = ''; $('#tCls').value = o.cls || ''; $('#tState').value = o.state == null ? '' : String(o.state); LX = o.lx || null;
   if (o.gu !== undefined) { F.gu = o.gu; $('#fGu').value = o.gu; if (F.sido && o.gu && sido(o.gu) !== F.sido) { F.sido = ''; $('#fSido').value = ''; } render(); }
   listPage = 1; renderList();
   if (location.hash !== '#list') location.hash = '#list'; else route();
 }
-const COLS = [['계약번호', 0], ['지자체', 1], ['구분', 2], ['체납개월', 3, 1], ['체납액(원)', 4, 1], ['최종분류', 5], ['관리 상태', 6], ['다음 할 일', 7], ['마지막 조치일', 8]];
+const COLS = [['계약번호', 0], ['지자체', 1], ['구분', 2], ['체납개월', 3, 1], ['체납액(원)', 4, 1], ['최종분류', 5], ['관리 상태', 6], ['다음 할 일', 7], ['마지막 조치일', 8], ['진행 단계', 13, 1]];
 function renderList() {
-  const q = $('#q').value.trim(), c = $('#tCls').value, s = $('#tState').value;
-  let R = D.hh.filter(r => pass(r[1], r[2]) && (!c || r[5] === c) && (s === '' || r[6] === +s) && (!LX || LX.fn(r)) && (!q || (r[0] + r[1] + r[5] + r[7]).includes(q)));
+  const q = $('#q').value.trim(), c = $('#tCls').value, s = $('#tState').value, tt = $('#tTerm').value, tc = $('#tCur').value;
+  let R = D.hh.filter(r => pass(r[1], r[2]) && (!c || r[5] === c) && (s === '' || r[6] === +s) && (!LX || LX.fn(r)) && (tt === '' || TERM[+tt][1](r)) && (!tc || r[9] === tc) && (!q || (r[0] + r[1] + r[5] + r[7]).includes(q)));
   R.sort((a, b) => (a[sortK] > b[sortK] ? 1 : a[sortK] < b[sortK] ? -1 : 0) * sortD);
   $('#tCnt').innerHTML = `${fmt(R.length)}세대` + (LX ? `<span class="xchip">${LX.label}<button type="button" id="xclr" title="이 조건 지우기">×</button></span>` : '');
   const show = R.slice(0, listPage * 30);
-  $('#tbList').innerHTML = '<tr>' + COLS.map(([n, k, r]) => `<th class="s ${r ? 'r' : ''}" data-k="${k}">${n}${sortK === k ? (sortD > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('') + '</tr>' + show.map(r => `<tr><td>${r[0]}</td><td>${r[1].replace(/^전세\((.+)\)$/, '$1')}</td><td>${r[2]}</td><td class="r">${r[3]}</td><td class="r">${fmt(r[4])}</td><td>${r[5]}</td><td><span class="chip"><i style="background:var(${STATES[r[6]][1]})"></i>${STATES[r[6]][0]}</span></td><td>${r[7]}</td><td>${r[8] || '<span style="color:var(--ink3)">기록 없음</span>'}</td></tr>`).join('');
+  $('#tbList').innerHTML = '<tr>' + COLS.map(([n, k, r]) => `<th class="s ${r ? 'r' : ''}" data-k="${k}">${n}${sortK === k ? (sortD > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('') + SHORT9.map(n => `<th class="dc">${n}</th>`).join('') + '</tr>' + show.map(r => `<tr><td>${r[0]}</td><td>${r[1].replace(/^전세\((.+)\)$/, '$1')}</td><td>${r[2]}</td><td class="r">${r[3]}</td><td class="r">${fmt(r[4])}</td><td>${r[5]}</td><td><span class="chip"><i style="background:var(${STATES[r[6]][1]})"></i>${STATES[r[6]][0]}</span></td><td>${r[7]}</td><td>${r[8] || '<span style="color:var(--ink3)">기록 없음</span>'}</td><td class="r">${r[10] ? r[13] : '-'}</td>${dots(r)}</tr>`).join('');
   $('#more').hidden = show.length >= R.length; $('#more').textContent = `더 보기 (${fmt(R.length - show.length)}세대 남음)`;
 }
-$('#tbList').addEventListener('click', e => { const th = e.target.closest('th.s'); if (!th) return; const k = +th.dataset.k; sortD = sortK === k ? -sortD : (k >= 3 && k <= 4 ? -1 : 1); sortK = k; renderList(); });
-['#q', '#tCls', '#tState'].forEach(s => $(s).addEventListener('input', () => { listPage = 1; renderList(); }));
+$('#tbList').addEventListener('click', e => { const th = e.target.closest('th.s'); if (!th) return; const k = +th.dataset.k; sortD = sortK === k ? -sortD : ((k >= 3 && k <= 4) || k === 13 ? -1 : 1); sortK = k; renderList(); });
+['#q', '#tCls', '#tState', '#tTerm', '#tCur'].forEach(s => $(s).addEventListener('input', () => { listPage = 1; renderList(); }));
 $('#more').addEventListener('click', () => { listPage++; renderList(); });
 $('#tCnt').addEventListener('click', e => { if (e.target.id === 'xclr') { LX = null; listPage = 1; renderList(); } });
 $('#kpis').addEventListener('click', e => { const k = e.target.closest('.kpi.clk'); if (k) goList(KGO[+k.dataset.i]); });
+$('#kpis2').addEventListener('click', e => { const k = e.target.closest('.kpi.clk'); if (k) goList(KGO2[+k.dataset.j]); });
 ['#lgState', '#lgState2', '#lgState3'].forEach(id => $(id).addEventListener('click', e => { const s = e.target.closest('span[data-k]'); if (s) goList({ state: +s.dataset.k }); }));
 
 /* filters + routing */
