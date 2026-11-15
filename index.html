@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.17</title>
+<title>1팀 체납관리 홈 ver.18</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -1258,6 +1258,7 @@ async function loadResults(fileList) {
   let notJoined = 0;
   const ownStep = '조치 진행(분류 기준)' in CR[0];
   CUR_IDS = CR.map(r => String(r['계약번호']).trim());   // ver.12: 전월 비교용 (화면에는 쓰지 않음)
+  RPT_CUR = null;   // ver.18(여현서 보고서 버튼): 통합 실행 결과에는 최근납부일이 없음
   const hh = CR.map(r => {
     const id = String(r['계약번호']).trim(), g = imap.get(id); if (!g) notJoined++;
     // ver.7: 분류결과에 '조치 진행(분류 기준)'이 있으면(통합 실행 ver.2) 신미림 분류 규칙의 판단을 우선해 점·현재 단계로 씀
@@ -1292,6 +1293,7 @@ async function loadRaw(fileList, assign, cached) {
   LAST = { all, assign, items, used: ENGINE.used() };   // ver.13: 통합데이터 만들기용(쓴 파일·시트)
   const hh = [], integRows = [];
   CUR_IDS = R.out.map(o => o.rec.계약번호);   // ver.12: 전월 비교용 (화면에는 쓰지 않음)
+  RPT_CUR = R.out.map(o => ({ pay: o.rec.최근납부일 || '' }));   // ver.18(여현서 보고서 버튼): 관리 효과(당월 납부) 판단용
   for (const { rec, row } of R.out) {
     const st = stageStr(rec, baseDate);
     const li = st.lastIndexOf('2'), cur = li < 0 ? '조치 전' : D.STAGES[li];
@@ -1716,7 +1718,7 @@ const STEP_NAMES = ['1차 납부최고', '2차 납부최고', '가옥명도최�
 const stFromNames = s => { const L = String(s || '').split(/\s*[,·]\s*/).map(x => x.trim()); return STEP_NAMES.map(n => L.includes(n) ? '2' : '0').join(''); };
 const monLabel = b => { const m = String(b || '').match(/^\d{4}-(\d{2})/); return m ? `${+m[1]}월` : '전월'; };
 const prevMonthEnd = b => { const d = ENGINE.toDate(b); return d ? new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 0)).toISOString().slice(0, 10) : ''; };
-let MOM = { on: false, src: '', re: false }, CUR_IDS = null;
+let MOM = { on: false, src: '', re: false }, CUR_IDS = null, RPT_PREV = null, RPT_CUR = null;   // ver.18(여현서 보고서 버튼): 전월 세대별 자료·당월 최근납부일 보관
 if (!D.pbase && Object.keys(D.prev || {}).length) { D.pbase = prevMonthEnd(D.base); MOM.src = '예시(가상) 데이터에 들어 있는 전월 자료 (여현서 A05 지표계산)'; }
 const hasMom = () => Object.keys(D.prev || {}).length > 0;
 function renderMom() {
@@ -1913,7 +1915,8 @@ async function loadPrev(fileList) {
     if (integ) { const IR = XLSX.utils.sheet_to_json(integ.wb.Sheets['통합'], { header: 1, raw: true, defval: '' }); const h = (IR[0] || []).map(x => String(x).trim()), ci = h.indexOf('계약번호'), ca = h.indexOf('체납액'); if (ci >= 0 && ca >= 0) amt = new Map(IR.slice(1).map(r => [String(r[ci]).trim(), Number(r[ca]) || 0])); }
     const own = '조치 진행(분류 기준)' in CR[0], names = '수행 완료 단계' in CR[0];
     rows = CR.filter(r => String(r['계약번호']).trim()).map(r => { const id = String(r['계약번호']).trim(); return { id, cls: String(r['최종분류']), next: String(r['다음 할 일'] || ''), state: stateOf(r), amt: amt ? (amt.get(id) ?? 0) : null,
-      st: own ? String(r['조치 진행(분류 기준)'] ?? '').replace(/\D/g, '').padStart(9, '0') : names ? stFromNames(r['수행 완료 단계']) : '' }; });
+      st: own ? String(r['조치 진행(분류 기준)'] ?? '').replace(/\D/g, '').padStart(9, '0') : names ? stFromNames(r['수행 완료 단계']) : '',
+      gu: String(r['지자체명'] || ''), con: String(r['계약/해약'] || ''), mon: Number(r['체납개월건수']) || 0, date: String(r['마지막조치일'] || ''), chk: r['누락여부'] === '확인 필요(조치일 없음)' ? 1 : 0 }; });
     src = [cls.name, integ && integ.name].filter(Boolean).join(' + ');
     if (!own && names) { opt.approx = true; if (!rows.some(r => r.st[8] === '2')) opt.skip = [8]; }
   } else if (items.some(i => i.wb.SheetNames.includes('통합'))) {
@@ -1924,7 +1927,7 @@ async function loadPrev(fileList) {
     const IR = XLSX.utils.sheet_to_json(integ[0].wb.Sheets['통합'], { defval: null, raw: true });
     if (!IR.length || !('계약번호' in IR[0]) || !('포함된 파일' in IR[0])) throw new Error('「통합」 시트가 김태경 님 A01 통합데이터 형식이 아닙니다 (계약번호·포함된 파일 열이 없음).');
     const R = ENGINE.runInteg(IR, pb, { ...D.crit });
-    rows = R.out.map(({ rec, row }) => ({ id: rec.계약번호, cls: row.최종분류, next: row['다음 할 일'], state: stateOf(row), amt: rec.총합계, st: stageStr(rec, pb) }));
+    rows = R.out.map(({ rec, row }) => ({ id: rec.계약번호, cls: row.최종분류, next: row['다음 할 일'], state: stateOf(row), amt: rec.총합계, st: stageStr(rec, pb), gu: rec.지자체명, con: rec.구분, mon: rec.개월, date: row.마지막조치일 || '', chk: row.누락여부 === '확인 필요(조치일 없음)' ? 1 : 0 }));
     src = `${integ[0].name} (전월 기준일 ${ENGINE.ymd(pb)}로 신미림 분류 규칙에 맞춰 다시 분류)`;
   } else {
     // 전월 원본 9종 → 전월 기준일로 다시 분류
@@ -1932,11 +1935,12 @@ async function loadPrev(fileList) {
     const P = ENGINE.plan(items);
     if (P.need) throw new Error('전월 원본에 같은 종류 파일이 여러 개이거나 종류가 애매한(또는 알 수 없는) 파일이 있습니다. 파일 이름을 확인해 전월 9종만 넣어 주세요.');
     const R = ENGINE.run(items, pb, { ...D.crit }, undefined, {});
-    rows = R.out.map(({ rec, row }) => ({ id: rec.계약번호, cls: row.최종분류, next: row['다음 할 일'], state: stateOf(row), amt: rec.총합계, st: stageStr(rec, pb) }));
+    rows = R.out.map(({ rec, row }) => ({ id: rec.계약번호, cls: row.최종분류, next: row['다음 할 일'], state: stateOf(row), amt: rec.총합계, st: stageStr(rec, pb), gu: rec.지자체명, con: rec.구분, mon: rec.개월, date: row.마지막조치일 || '', chk: row.누락여부 === '확인 필요(조치일 없음)' ? 1 : 0 }));
     src = `전월 원본 ${Object.keys(R.files).length}종 (이 페이지가 전월 기준일로 분류)`;
   }
   if (!pbase) pbase = prevMonthEnd(D.base);
   if (pbase >= D.base) throw new Error(`전월 자료의 기준일(${pbase})이 이번 달 기준일(${D.base})보다 늦거나 같습니다. 전월 자료가 맞는지 확인해 주세요.`);
+  RPT_PREV = { base: pbase, src, rows };   // ver.18(여현서 보고서 버튼): 전월 세대별 자료 보관
   return buildMom(rows, pbase, src, opt);
 }
 $('#momBtn').addEventListener('click', () => { MOM.on = !MOM.on; MOM.re = false; renderMom(); render(); });
@@ -1949,5 +1953,106 @@ $('#dReset').addEventListener('click', () => { location.href = location.pathname
 $('#dSample').addEventListener('click', () => { LOADED = 'sample'; if (location.hash !== '#home') location.hash = '#home'; else route(); });
 renderStatic(); render(); route();
 </script>
+<!-- ver.18: 여현서 님 「보고서 만들기」 버튼 (dashboard/index_ver.15_report.html에서 그대로 옮김 · 로컬 보고서 생성기 dashboard/report_tool) -->
+<style>
+/* ---- 보고서 만들기 (로컬 보고서 생성기 연결) ---- */
+.rptbtn{margin-left:auto;border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;background:var(--yeo);color:#fff;display:inline-flex;align-items:center;gap:6px}
+.rptbtn:hover{filter:brightness(1.08)}
+.rptbtn:focus-visible,.rptdlg button:focus-visible,.rptdlg a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.rptmask{position:fixed;inset:0;background:rgba(10,18,22,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.rptmask.on{display:flex}
+.rptdlg{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);width:min(520px,100%);padding:22px 22px 18px}
+.rptdlg h3{margin:0 0 4px;font-size:17px}
+.rptdlg .lead{color:var(--ink3);font-size:12.5px;margin:0 0 14px}
+.rptdlg dl{display:grid;grid-template-columns:88px 1fr;gap:6px 10px;margin:0 0 14px;font-size:13px}
+.rptdlg dt{color:var(--ink3)}.rptdlg dd{margin:0}
+.rptdlg .note{font-size:12.5px;border-radius:8px;padding:9px 11px;margin:0 0 14px;background:var(--line2);color:var(--ink2)}
+.rptdlg .note.warn{background:color-mix(in srgb,var(--s-hold) 16%,transparent);color:var(--ink)}
+.rptdlg .note.err{background:color-mix(in srgb,var(--s-miss) 14%,transparent);color:var(--ink)}
+.rptdlg .row{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.rptdlg button,.rptdlg a.b{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;text-decoration:none;font-size:13.5px}
+.rptdlg .pri{background:var(--yeo);border-color:var(--yeo);color:#fff}
+.rptdlg button:disabled{opacity:.55;cursor:default}
+.rptdlg .prog{display:none;align-items:center;gap:10px;font-size:13px;color:var(--ink2);margin:0 0 14px}
+.rptdlg .prog.on{display:flex}
+.rptdlg .spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--yeo);animation:rptspin .9s linear infinite}
+@keyframes rptspin{to{transform:rotate(360deg)}}
+.rptdlg .done{display:none}.rptdlg .done.on{display:block}
+.rptdlg .done h4{margin:0 0 8px;font-size:14px}
+.rptdlg .done .row{justify-content:flex-start;margin-bottom:12px}
+@media (prefers-reduced-motion:reduce){.rptdlg .spin{animation:none}}
+</style>
+<div class="rptmask" id="rptMask" role="dialog" aria-modal="true" aria-labelledby="rptTitle">
+  <div class="rptdlg">
+    <h3 id="rptTitle">월 체납관리 현황 보고서</h3>
+    <p class="lead">확정 보고서와 같은 양식·규칙으로 한글(hwpx)과 PDF를 만듭니다. 이 PC의 보고서 생성기가 켜져 있어야 해요.</p>
+    <dl><dt>기준월</dt><dd id="rptMonth">-</dd><dt>보고서 자료</dt><dd id="rptSrc">-</dd><dt>생성기</dt><dd id="rptSrv">확인 중…</dd></dl>
+    <div class="note" id="rptNote" hidden></div>
+    <div class="prog" id="rptProg"><span class="spin" aria-hidden="true"></span><span id="rptProgTx">보고서를 만드는 중이에요 (보통 1분 정도)</span></div>
+    <div class="done" id="rptDone">
+      <h4 id="rptDoneTx">보고서가 준비됐어요</h4>
+      <div class="row"><a class="b pri" id="rptOpen" target="_blank" rel="noopener">보고서 열기</a><a class="b" id="rptHwpx">한글(.hwpx) 저장</a><a class="b" id="rptPdf">PDF 저장</a></div>
+    </div>
+    <div class="row"><button id="rptClose">닫기</button><button class="pri" id="rptGo" disabled>보고서 만들기</button></div>
+  </div>
+</div>
+<script>
+(() => {
+  const SRV = 'http://127.0.0.1:8791';
+  const $r = s => document.querySelector(s);
+  const btn = document.createElement('button'); btn.className = 'rptbtn'; btn.id = 'rptBtn'; btn.type = 'button'; btn.textContent = '보고서 만들기'; btn.hidden = true;
+  document.querySelector('.top').append(btn);
+  // 데이터를 넣었거나 예시를 볼 때만 버튼을 보여 줌 (데이터 넣기·팀 화면 제외)
+  const sync = () => { const v = (location.hash || '#data').slice(1); btn.hidden = !LOADED || v === 'data' || v === 'team'; };
+  addEventListener('hashchange', () => setTimeout(sync, 0)); setInterval(sync, 700); sync();
+  const ym = () => { const b = String(D.base || ''); return b.length >= 7 ? b.slice(0, 4) + b.slice(5, 7) : ''; };
+  let busy = false;
+  const note = (msg, kind) => { const n = $r('#rptNote'); n.hidden = !msg; n.className = 'note' + (kind ? ' ' + kind : ''); n.innerHTML = msg || ''; };
+  const srcLabel = () => LOADED === 'sample' ? '예시(가상) 데이터' : (D.src || '넣은 데이터');
+  // 전월 세대별 자료: 「전월 대비 추이 보기」에서 전월 자료를 넣으면 RPT_PREV에 보관됨(당월을 다시 넣으면 무효)
+  const prevOK = () => typeof RPT_PREV !== 'undefined' && RPT_PREV && D.pbase && RPT_PREV.base === D.pbase && Array.isArray(CUR_IDS) && CUR_IDS.length === (D.hh || []).length;
+  async function check() {
+    const m = ym(); $r('#rptMonth').textContent = m ? `${m.slice(0, 4)}년 ${+m.slice(4)}월 (기준일 ${D.base})` : '-';
+    $r('#rptSrc').textContent = `대시보드에 들어간 당월 자료 · ${srcLabel()} · ${(D.hh || []).length.toLocaleString()}세대`;
+    $r('#rptGo').disabled = true; $r('#rptSrv').textContent = '확인 중…'; note('');
+    try {
+      const r = await fetch(SRV + '/status', { cache: 'no-store' }); await r.json();
+      $r('#rptSrv').textContent = '켜져 있음';
+      if (!(D.hh || []).length) { note('대시보드에 세대 자료가 없어요. 「데이터 넣기」에서 먼저 자료를 넣어 주세요.', 'err'); return; }
+      if (prevOK()) note(`전월 자료(${RPT_PREV.base} 기준, ${RPT_PREV.rows.length.toLocaleString()}세대)가 있어 <b>전월 대비 보고서</b>로 만들어요. 증감률·해소·신규·관리 효과가 함께 들어갑니다.`);
+      else note('전월 자료가 없어 <b>당월 현황 보고서</b>로 만들어요. 전체 현황의 「전월 대비 추이 보기」에서 전월 통합데이터를 넣으면 전월 대비 보고서로 만들어집니다.' + (LOADED === 'sample' ? ' (예시 데이터에는 세대별 전월 자료가 없어요)' : ''));
+      $r('#rptGo').disabled = busy;
+    } catch (e) {
+      $r('#rptSrv').textContent = '꺼져 있음';
+      note('보고서 생성기가 꺼져 있어요. <b>dashboard\\report_tool\\보고서 생성기 켜기.bat</b>을 실행한 뒤 이 창을 다시 열어 주세요.', 'err');
+    }
+  }
+  function open() { $r('#rptDone').classList.remove('on'); $r('#rptProg').classList.toggle('on', busy); $r('#rptMask').classList.add('on'); check(); $r('#rptClose').focus(); }
+  function close() { $r('#rptMask').classList.remove('on'); btn.focus(); }
+  btn.addEventListener('click', open);
+  $r('#rptClose').addEventListener('click', close);
+  $r('#rptMask').addEventListener('click', e => { if (e.target.id === 'rptMask') close(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && $r('#rptMask').classList.contains('on')) close(); });
+  $r('#rptGo').addEventListener('click', async () => {
+    const m = ym(); busy = true; note(''); $r('#rptGo').disabled = true; $r('#rptDone').classList.remove('on'); $r('#rptProg').classList.add('on');
+    const t0 = Date.now(); const tick = setInterval(() => { $r('#rptProgTx').textContent = `보고서를 만드는 중이에요 (보통 1분 정도) · ${Math.round((Date.now() - t0) / 1000)}초`; }, 1000);
+    try {
+      // 대시보드에 지금 들어 있는 당월 세대별 분류 결과를 그대로 보냄 (text/plain이라 사전 확인 요청 없음)
+      const crit = D.crit || {}; const payload = { base: D.base, src: srcLabel(), missMonths: crit['누락_판단_개월'] || 2, STAGES: D.STAGES, hh: D.hh };
+      if (prevOK()) Object.assign(payload, { ids: CUR_IDS, cur: (typeof RPT_CUR !== 'undefined' && RPT_CUR) || null, prev: { base: RPT_PREV.base, src: RPT_PREV.src, rows: RPT_PREV.rows } });
+      const r = await fetch(SRV + '/make', { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify(payload) }); const j = await r.json();
+      if (!j.ok) throw new Error(j.error || '알 수 없는 오류');
+      const nm = encodeURIComponent(j.name);
+      $r('#rptOpen').href = `${SRV}/out/${j.pdf}?name=${nm}`;
+      $r('#rptHwpx').href = `${SRV}/out/${j.hwpx}?name=${nm}`;
+      $r('#rptPdf').href = `${SRV}/out/${j.pdf}?dl=1&name=${nm}`;
+      $r('#rptDoneTx').textContent = `보고서가 준비됐어요 · ${j.pages}쪽 · ${Math.round((Date.now() - t0) / 1000)}초`;
+      $r('#rptDone').classList.add('on'); note('');
+    } catch (e) { note('보고서를 만들지 못했어요: ' + String(e.message || e).replace(/</g, '&lt;'), 'err'); }
+    finally { clearInterval(tick); busy = false; $r('#rptProg').classList.remove('on'); $r('#rptGo').disabled = false; }
+  });
+})();
+</script>
+
 </body>
 </html>
