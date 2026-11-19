@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.18</title>
+<title>1팀 체납관리 홈 ver.19</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -200,6 +200,13 @@ code{background:var(--line2);border-radius:5px;padding:1px 5px;font-size:12px}
 }
 /* ver.2: 도표·범례·KPI를 누르면 해당 세대 목록으로 이동 */
 .clk{cursor:pointer}
+/* ver.19 모션 */
+.sg,.cmp .cb i{transition:width .55s cubic-bezier(.2,.7,.2,1)}
+@keyframes mIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes mFade{from{opacity:0}to{opacity:1}}
+.flow .fl{animation:mIn .45s ease-out both;animation-delay:calc(var(--i,0) * 90ms)}
+.anim-d,.kpi .d{animation:mFade .4s ease-out .5s both}
+@media (prefers-reduced-motion:reduce){.sg,.cmp .cb i{transition:none}.flow .fl,.anim-d,.kpi .d{animation:none}}
 .sg.clk:hover{filter:brightness(1.12);box-shadow:inset 0 0 0 2px var(--ink)}
 .lb.clk:hover,.legend span.clk:hover,.kpi.clk:hover .l{text-decoration:underline}
 .legend span.clk{cursor:pointer}
@@ -436,7 +443,8 @@ const fmt = n => Number(n).toLocaleString('ko-KR');
 const won = n => n >= 1e8 ? (n / 1e8).toFixed(1) + '억' : n >= 1e4 ? fmt(Math.round(n / 1e4)) + '만' : fmt(n);
 const sido = g => g.includes('인천') ? '인천광역시' : '경기도';
 const STATES = [['누락 의심', '--s-miss'], ['관리필요', '--s-need'], ['익월 재검토', '--s-hold'], ['관리중', '--s-ok']];
-const CLS = ['강제집행 대상자', '제소대상자', '소송유예자', '생활안정지원대상자', '분과심의 대상자', '분과심의 보류 대상자', '장기체납자', '중기체납자', '단기체납자', '특수채권'];
+// ver.19: 최종분류 순서 (2026-11-20 신미림 요청) — 단기 → 중기 → 장기 → 제소 → 소송유예 → 생활안정지원 → 분과심의 → 분과심의 보류 → 강제집행 → 특수채권
+const CLS = ['단기체납자', '중기체납자', '장기체납자', '제소대상자', '소송유예자', '생활안정지원대상자', '분과심의 대상자', '분과심의 보류 대상자', '강제집행 대상자', '특수채권'];
 const TITLES = { home: ['전체 현황', ''], list: ['세대 목록', '10월 체납세대'], data: ['데이터 넣기', '새 Excel로 화면 바꾸기'], a01: ['① 데이터 통합', '김태경 · A01'], a02: ['② 대상자 분류', '신미림 · A02 ~ A04'], a05: ['③ 월 결산 보고', '여현서 · A05'], team: ['팀 · 협업 규칙', ''], mom: ['전월 대비 추이', '전월 → 이번 달 비교'] };
 const F = { sido: '', gu: '', con: '' };
 const pass = (gu, con) => (!F.sido || sido(gu) === F.sido) && (!F.gu || gu === F.gu) && (!F.con || con === F.con);
@@ -447,19 +455,56 @@ const tip = $('#tip');
 document.addEventListener('mousemove', e => { const t = e.target.closest('[data-tip]'); if (!t) { tip.style.display = 'none'; return; } tip.innerHTML = t.dataset.tip; tip.style.display = 'block'; const w = tip.offsetWidth; tip.style.left = Math.min(e.clientX + 12, innerWidth - w - 8) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; });
 
 /* horizontal bars: items = [{label, segs:[{v,color,name}], note}] */
+/* ver.19 모션: 막대는 처음 보일 때 0에서 자라나고, 필터를 바꾸면 지금 길이에서 새 길이로 이어서 움직인다.
+   숫자 카드는 데이터를 넣었을 때 한 번 올라가며 센다. 컴퓨터에서 「애니메이션 줄이기」를 켜 두면 움직이지 않는다. */
+const RM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+let ANIM_GEN = 1;   // 새 데이터를 넣을 때마다 1씩 늘림 → 각 화면을 처음 열 때 한 번 모션
+const raf2 = fn => requestAnimationFrame(() => requestAnimationFrame(fn));
+function growIn(root, stagger = 28) {
+  const els = [...root.querySelectorAll('[data-w]')];
+  if (RM) { els.forEach(e => { e.style.width = e.dataset.w; }); return; }
+  els.forEach(e => { e.style.transition = 'none'; e.style.width = '0%'; });
+  void root.offsetWidth;
+  els.forEach(e => { e.style.transition = ''; e.style.transitionDelay = ((+e.dataset.row || 0) * stagger + (+e.dataset.lag || 0)) + 'ms'; e.style.width = e.dataset.w; });
+  setTimeout(() => els.forEach(e => { e.style.transitionDelay = ''; }), 1600);
+}
+function countUp(root) {
+  if (RM) return;
+  root.querySelectorAll('.kpi .v').forEach(v => {
+    const t = v.firstChild; if (!t || t.nodeType !== 3) return;
+    const m = t.textContent.match(/^([\d,]+(?:\.\d+)?)(.*)$/); if (!m) return;
+    const goal = +m[1].replace(/,/g, ''), dec = (m[1].split('.')[1] || '').length, suf = m[2], t0 = performance.now(), dur = 650;
+    const step = now => { const p = Math.min(1, (now - t0) / dur), x = goal * (1 - Math.pow(1 - p, 3)); t.textContent = (dec ? x.toFixed(dec) : Math.round(x).toLocaleString('ko-KR')) + suf; if (p < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+}
+function playView(v) {
+  const sec = document.getElementById('v-' + v);
+  if (!sec || sec.dataset.anim == String(ANIM_GEN)) return;
+  sec.dataset.anim = String(ANIM_GEN);
+  raf2(() => { growIn(sec); countUp(sec); });
+}
 function bars(id, items, opt = {}) {
-  const box = $(id); box.innerHTML = '';
+  const box = $(id);
+  // 이전 막대 길이를 기억해 두었다가 새 길이로 이어서 움직인다 (필터 변경 등)
+  const prev = {}; box.querySelectorAll('.br').forEach(r => { const l = r.querySelector('.lb'); if (l) r.querySelectorAll('.sg').forEach(g => { prev[l.textContent + '|' + g.dataset.k] = g.style.width; }); });
+  const shown = box.offsetParent !== null, segsMade = [];
+  box.innerHTML = '';
   const max = Math.max(1, ...items.map(i => i.segs.reduce((a, s) => a + s.v, 0)));
   if (!items.some(i => i.segs.some(s => s.v))) { box.append(el('div', 'empty', '해당하는 세대가 없습니다.')); return; }
   if (opt.lw) box.style.setProperty('--lw', opt.lw + 'px');
-  for (const it of items) {
+  items.forEach((it, rowI) => {
     const tot = it.segs.reduce((a, s) => a + s.v, 0);
     const r = el('div', 'br'); r.append(el('div', 'lb', it.label)); r.firstChild.title = it.label.replace(/<[^>]+>/g, '');
     if (it.go) { r.firstChild.classList.add('clk'); r.firstChild.title += ' · 눌러서 세대 목록 보기'; r.firstChild.addEventListener('click', () => goList(it.go)); }
     const tr = el('div', 'tr');
-    for (const s of it.segs) { if (!s.v) continue; const g = el('div', 'sg'); g.style.width = (s.v / max * 100) + '%'; g.style.background = `var(${s.color})`; g.dataset.tip = s.tip ? s.tip : `<b>${it.label.replace(/<[^>]+>/g, '')}</b><br>${s.name} ${fmt(s.v)}세대` + (tot ? ` (${Math.round(s.v / tot * 100)}%)` : ''); if (s.go) { g.classList.add('clk'); g.dataset.tip += '<br><span style="opacity:.75">눌러서 세대 목록 보기</span>'; g.addEventListener('click', () => goList(s.go)); } tr.append(g); }
+    it.segs.forEach((s, segI) => { if (!s.v) return; const g = el('div', 'sg'); const w = (s.v / max * 100) + '%', key = r.firstChild.textContent + '|' + segI;
+      g.dataset.w = w; g.dataset.k = segI; g.dataset.row = rowI;
+      g.style.width = RM ? w : key in prev ? prev[key] : shown ? '0%' : w;   // 보이는 화면: 이전 길이(없으면 0)에서 시작 · 숨은 화면: 처음 열 때 playView가 움직임
+      segsMade.push(g); g.style.background = `var(${s.color})`; g.dataset.tip = s.tip ? s.tip : `<b>${it.label.replace(/<[^>]+>/g, '')}</b><br>${s.name} ${fmt(s.v)}세대` + (tot ? ` (${Math.round(s.v / tot * 100)}%)` : ''); if (s.go) { g.classList.add('clk'); g.dataset.tip += '<br><span style="opacity:.75">눌러서 세대 목록 보기</span>'; g.addEventListener('click', () => goList(s.go)); } tr.append(g); });
     r.append(tr, el('div', 'n', fmt(it.shown ?? tot) + (it.note ? `<span style="color:var(--ink3);font-weight:400"> ${it.note}</span>` : ''))); box.append(r);
-  }
+  });
+  if (!RM && shown) raf2(() => segsMade.forEach(g => { if (!Object.keys(prev).length) g.style.transitionDelay = (+g.dataset.row * 28) + 'ms'; g.style.width = g.dataset.w; setTimeout(() => { g.style.transitionDelay = ''; }, 1600); }));
 }
 const stateSegs = (rows, go) => STATES.map(([name, color], k) => ({ v: rows.filter(r => r[6] === k).length, color, name, go: go ? { ...go, state: k } : null }));
 const legend = id => { $(id).innerHTML = STATES.map(([n, c], k) => `<span class="clk" data-k="${k}" title="눌러서 ${n} 세대 목록 보기"><i style="background:var(${c})"></i>${n}</span>`).join(''); };
@@ -503,7 +548,7 @@ function render() {
   bars('#chCls', cls); bars('#chCls2', cls);
   /* next action */
   const nx = {}; for (const r of H) if (r[6] < 2) { (nx[r[7]] = nx[r[7]] || [0, 0])[r[6]]++; }
-  const nextItems = withPrev => Object.entries(nx).sort((a, b) => (b[1][0] + b[1][1]) - (a[1][0] + a[1][1])).map(([k, v]) => ({ label: k, go: { lx: NX(k) }, note: withPrev && !filtered() && D.prevNext[k] != null ? `(${D.prevNext[k]})` : '', segs: [{ v: v[0], color: '--s-miss', name: '누락 의심', go: { lx: NX(k), state: 0 } }, { v: v[1], color: '--s-need', name: '관리필요', go: { lx: NX(k), state: 1 } }] }));
+  const nextItems = withPrev => Object.entries(nx).sort((a, b) => nextRank(a[0]) - nextRank(b[0]) || (b[1][0] + b[1][1]) - (a[1][0] + a[1][1])).map(([k, v]) => ({ label: k, go: { lx: NX(k) }, note: withPrev && !filtered() && D.prevNext[k] != null ? `(${D.prevNext[k]})` : '', segs: [{ v: v[0], color: '--s-miss', name: '누락 의심', go: { lx: NX(k), state: 0 } }, { v: v[1], color: '--s-need', name: '관리필요', go: { lx: NX(k), state: 1 } }] }));
   bars('#chNextHome', nextItems(false), { lw: 150 }); bars('#chNext', nextItems(true), { lw: 150 });
   /* A01 */
   bars('#chStage', D.STAGES.map((s, i) => ({ label: `${i + 1}. ${s}`, shown: I.filter(r => r[2][i] === '2').length, segs: [{ v: I.filter(r => r[2][i] === '2').length, color: '--bar', name: '완료' }, { v: I.filter(r => r[2][i] === '1').length, color: '--bar-soft', name: '대상 · 미수행' }] })), { lw: 150 });
@@ -607,6 +652,7 @@ function route() {
   $('#vtitle').textContent = TITLES[v][0]; $('#vsub').textContent = (TITLES[v][1] ? TITLES[v][1] + ' · ' : '') + `기준일 ${D.base} · ${D.src || '가상 데이터'}`;
   $('#filters').style.display = (v === 'team' || v === 'data' || v === 'mom') ? 'none' : ''; scrollTo(0, 0);
   if (v === 'mom') renderMomTab();   // ver.16
+  else playView(v);   // ver.19 모션: 새 데이터로 이 화면을 처음 열 때 막대·숫자 카드가 움직임
 }
 addEventListener('hashchange', route);
 /* ===== ver.5 데이터 넣기: 원본 9개 처리 엔진 (팀원/신미림/체납관리_분류도구_ver.6.html의 A01~A04 규칙을 그대로 옮김) ===== */
@@ -1068,7 +1114,11 @@ const escH = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': 
 const MASK = id => { id = String(id); return id.length > 7 ? id.slice(0, 4) + '····' + id.slice(-3) : id; };
 const STG_KEYS = ['P1', 'P2', 'GA', 'BG', 'S1', 'JE', 'S2', 'SI', 'PJ'];
 const STG_FILE = { P1: 'P1', P2: 'P2', GA: 'GA', BG: 'BG', S1: 'S1', JE: 'JE', S2: 'S2', SI: 'SI', PJ: 'SI' };
-const CLS_ORDER = ['강제집행필요 세대', '강제집행 대상자', '제소대상자', '소송유예자', '생활안정지원대상자', '분과심의 대상자', '분과심의 보류 대상자', '장기체납자', '중기체납자', '단기체납자', '특수채권', '독려대상(3개월 미만)'];
+// ver.19: 「다음에 할 조치」는 세대 수 순서가 아니라 조치 단계 순서로 보여 준다 (목록에 없는 이름은 맨 뒤, 그 안에서는 세대 많은 순)
+const NEXT_ORDER = ['유선·SNS 납부 독려', '1차 납부최고', '2차 납부최고', '가옥명도최고', '분과심의 상정 여부 검토', '분과심의 상정', '분과심의', '소송통고 1차', '제소', '소송통고 2차', '소송정보입력', '판결', '판결결과 확인(강제집행 여부 판단)', '강제집행 검토', '익월 재검토'];
+const nextRank = k => { const i = NEXT_ORDER.indexOf(String(k)); return i < 0 ? 999 : i; };
+// ver.19: 위 CLS와 같은 순서 · 넣은 데이터에만 있는 분류는 독려대상(3개월 미만)을 단기 앞에, 강제집행필요 세대를 강제집행 대상자 자리에 둠
+const CLS_ORDER = ['독려대상(3개월 미만)', '단기체납자', '중기체납자', '장기체납자', '제소대상자', '소송유예자', '생활안정지원대상자', '분과심의 대상자', '분과심의 보류 대상자', '강제집행필요 세대', '강제집행 대상자', '특수채권'];
 const SET_LABEL = { '단기체납 시작': '단기체납_시작_개월', '중기체납 시작': '중기체납_시작_개월', '장기체납 시작': '장기체납_시작_개월', '특수채권(해약) 최소 체납': '특수채권_최소_체납개월', '분과심의 보증금잠식률': '분과심의_보증금잠식률_기준_퍼센트', '예외: 최근3개월 납부': '예외_최근3개월납부_월임대료_배수', '소송유예: 최근3개월 납부': '소송유예_최근3개월납부_월임대료_배수', '강제집행: 최근3개월 납부': '강제집행_최근3개월납부_월임대료_배수_이하', '누락 판단: 마지막 조치 후': '누락_판단_개월' };
 let DATA_INFO = { kind: 'default' };
 /* 관리 상태: 0 누락 의심 · 1 관리필요(다음 할 일 남음) · 2 익월 재검토 · 3 관리중(완료·법원 대기) — 여현서 A05 지표와 같은 정의 */
@@ -1220,7 +1270,7 @@ function applyData(D2, info) {
   TITLES.list[1] = '체납세대';
   const b = String(D.base).split('-'); $('#heroEye').textContent = `전세임대 체납관리 · ${b[0]}년 ${+b[1]}월`;
   $('#a05Lead').textContent = '분류 결과를 받아 월 결산 지표를 계산하고 보고서 초안을 만드는 단계입니다. 아래 수치는 「데이터 넣기」에서 넣은 파일로 계산한 값입니다(전월 비교·이번 달 수행 실적은 넣은 파일에 없어 비어 있습니다).';
-  DATA_INFO = info; LOADED = 'data';
+  DATA_INFO = info; LOADED = 'data'; ANIM_GEN++;   // ver.19 모션: 새 데이터 → 화면마다 다시 한 번 움직임
   D.pbase = D2.pbase || ''; MOM = { on: false, src: '', re: false };   // ver.12: 새 데이터에는 전월 자료가 없으므로 비교를 끈다
   $('#dotSrc').textContent = (info.kind === 'raw' || info.ownStep) ? '· 오른쪽 조치 진행 열은 신미림 분류 규칙이 완료로 본 단계 기준 (분류 규칙 우선)' : '· 오른쪽 조치 진행 열은 김태경 님 A01 통합데이터 기준 (예전 분류결과 파일이라 분류 기준 열이 없음)';
   F.sido = F.gu = F.con = ''; $('#fSido').value = ''; $('#fGu').value = ''; [...$('#fCon').children].forEach((x, i) => x.classList.toggle('on', !i));
@@ -1737,7 +1787,7 @@ function renderMom() {
     const a2 = f[2] == null ? '체납액 자료 없음' : (kind === 'end' ? '' : kind === 'keep' ? '금액 변동 ' : '') + (kind === 'end' ? '' : f[2] > 0 ? '+' : f[2] < 0 ? '−' : '') + won(Math.abs(f[2])) + '원';
     // ver.16: 흐름 칸을 누르면 「전월 대비 추이」 탭에서 해당 부분 도표를 보여 준다
     const seg = i === 0 ? 'prev' : i === a.length - 1 ? 'cur' : kind === 'minus' ? 'gone' : kind === 'plus' ? 'new' : 'keep';
-    return `<div class="fl clk ${end ? 'end' : ''}" data-seg="${seg}" title="눌러서 「전월 대비 추이」 탭에서 도표 보기"><div class="l">${escH(String(f[0]).replace(/^\(±\)\s*/, ''))}</div><div class="v">${n}<small style="font-size:12px;font-weight:500;color:var(--ink3)"> 세대</small></div><div class="l">${a2}</div></div>`;
+    return `<div class="fl clk ${end ? 'end' : ''}" style="--i:${i}" data-seg="${seg}" title="눌러서 「전월 대비 추이」 탭에서 도표 보기"><div class="l">${escH(String(f[0]).replace(/^\(±\)\s*/, ''))}</div><div class="v">${n}<small style="font-size:12px;font-weight:500;color:var(--ink3)"> 세대</small></div><div class="l">${a2}</div></div>`;
   }).join('');
   $('#momDone').innerHTML = `<p class="src" style="margin:0">${D.done.length ? `이번 달에 새로 완료한 조치(전월 대비)는 「③ 월 결산 보고」의 이번 달 수행 실적에서 볼 수 있습니다. ` : ''}${D.pbase ? `전월 기준일 ${escH(D.pbase)}` : ''}${MOM.overlap ? ` · 두 달 모두 있는 세대 ${fmt(MOM.overlap)}` : ''}</p>`;
 }
@@ -1748,9 +1798,10 @@ function cmpChart(rows, opt = {}) {
   const PM = monLabel(D.pbase), CM = monLabel(D.base), f = opt.fmt || fmt, u = opt.unit ?? '세대';
   const max = Math.max(1, ...rows.flatMap(r => [r[1] || 0, r[2] || 0]));
   if (!rows.some(r => r[1] || r[2])) return '<div class="empty">해당하는 세대가 없습니다.</div>';
-  return `<div class="cmpleg"><span><i style="background:var(--bar-soft)"></i>${PM}</span><span><i style="background:var(--bar)"></i>${CM}</span></div><div class="cmp">` + rows.map(([l, a, b]) => {
-    const d = (b || 0) - (a || 0), ds = d ? `${d > 0 ? '▲' : '▼'} ${f(Math.abs(d))}` : '같음';
-    return `<div class="cr"><div class="cl" title="${escH(l)}">${escH(l)}</div><div class="cb"><i style="width:${(a || 0) / max * 100}%;background:var(--bar-soft)" data-tip="<b>${escH(l)}</b><br>${PM} ${f(a || 0)}${u}"></i><i style="width:${(b || 0) / max * 100}%;background:var(--bar)" data-tip="<b>${escH(l)}</b><br>${CM} ${f(b || 0)}${u}"></i></div><div class="cv">${f(a || 0)} → <b>${f(b || 0)}</b><br><small>${ds}</small></div></div>`;
+  // ver.19 모션: 전월 막대가 먼저, 이번 달 막대가 이어서 자라나고 증감 표시는 뒤에 나타남 (renderMomTab 끝에서 growIn)
+  return `<div class="cmpleg"><span><i style="background:var(--bar-soft)"></i>${PM}</span><span><i style="background:var(--bar)"></i>${CM}</span></div><div class="cmp">` + rows.map(([l, a, b], i) => {
+    const d = (b || 0) - (a || 0), ds = d ? `${d > 0 ? '▲' : '▼'} ${f(Math.abs(d))}` : '같음', wa = `${(a || 0) / max * 100}%`, wb = `${(b || 0) / max * 100}%`;
+    return `<div class="cr"><div class="cl" title="${escH(l)}">${escH(l)}</div><div class="cb"><i style="width:${RM ? wa : '0%'};background:var(--bar-soft)" data-w="${wa}" data-row="${i}" data-lag="0" data-tip="<b>${escH(l)}</b><br>${PM} ${f(a || 0)}${u}"></i><i style="width:${RM ? wb : '0%'};background:var(--bar)" data-w="${wb}" data-row="${i}" data-lag="180" data-tip="<b>${escH(l)}</b><br>${CM} ${f(b || 0)}${u}"></i></div><div class="cv">${f(a || 0)} → <b>${f(b || 0)}</b><br><small class="anim-d">${ds}</small></div></div>`;
   }).join('') + '</div>';
 }
 const countBy = (arr, key) => { const o = {}; arr.forEach(r => { const k = typeof key === 'function' ? key(r) : r[key]; if (k != null && k !== '') o[k] = (o[k] || 0) + 1; }); return o; };
@@ -1775,7 +1826,7 @@ function renderMomSample(seg, PM, CM, card) {
     html += card('최종분류별 세대', `${PM}과 ${CM} 비교 · 오른쪽은 ${PM} → ${CM} (증감)`, cmpChart(keys.map(k => [k, (D.prevCls || {})[k] || 0, curC[k] || 0])));
     const miss = k => P[k] || [0, 0], m0 = miss('그중 누락 의심(방치)'), need = miss('관리필요세대');
     const stRows = [['누락 의심', m0[0], H.filter(r => r[6] === 0).length], ['관리필요(누락 제외)', need[0] - m0[0], H.filter(r => r[6] === 1).length], ['익월 재검토', miss('예외분류(익월 재검토) 세대')[0], H.filter(r => r[6] === 2).length], ['관리중', miss('관리중 세대')[0], H.filter(r => r[6] === 3).length]];
-    const nb = countBy(H.filter(r => r[6] < 2), 7), na = D.prevNext || {}, nk = [...new Set([...Object.keys(na), ...Object.keys(nb)])].sort((x, y) => ((nb[y] || 0) + (na[y] || 0)) - ((nb[x] || 0) + (na[x] || 0)));
+    const nb = countBy(H.filter(r => r[6] < 2), 7), na = D.prevNext || {}, nk = [...new Set([...Object.keys(na), ...Object.keys(nb)])].sort((x, y) => nextRank(x) - nextRank(y) || ((nb[y] || 0) + (na[y] || 0)) - ((nb[x] || 0) + (na[x] || 0)));
     html += `<div class="grid g2">` + card('관리 상태별 세대', '누락 의심 · 관리필요 · 익월 재검토 · 관리중', cmpChart(stRows)) + card('다음에 할 조치 (관리필요 세대)', '누락 의심 + 관리필요 세대의 다음 할 일', cmpChart(nk.map(k => [k, na[k] || 0, nb[k] || 0]))) + `</div>`;
     const grp = [['경기도', '시도: 경기도 세대'], ['인천광역시', '시도: 인천광역시 세대'], ['계약', '계약자'], ['해약', '해약자'], ['최근 3개월에 납부한 세대', '최근 3개월 납부 세대']].filter(([, k]) => P[k]);
     if (grp.length) html += card('지역 · 계약 구분 · 납부 세대', '', cmpChart(grp.map(([l, k]) => [l, P[k][0], P[k][1]])));
@@ -1800,6 +1851,7 @@ function renderMomSample(seg, PM, CM, card) {
   }
   box.innerHTML = `<div class="card" style="padding:10px 14px"><p class="src" style="margin:0">예시(가상) 데이터 · ${PM}과 ${CM}의 합계 자료로 보여 줍니다 (여현서 A05 지표계산 전월대비).</p></div>` + html;
   later.forEach(fn => fn());
+  raf2(() => growIn(box, 35));   // ver.19 모션
 }
 function renderMomTab() {
   const box = $('#momBody'), segBox = $('#momSeg'), lead = $('#momLead');
@@ -1817,7 +1869,7 @@ function renderMomTab() {
   const stat = items => `<div class="mstat">${items.map(([l, v]) => `<div><div class="l">${l}</div><div class="v">${v}</div></div>`).join('')}</div>`;
   const clsCmp = () => { const a = countBy(P, 'cls'), b = countBy(C, 'cls'), keys = clsOrder([...new Set([...Object.keys(a), ...Object.keys(b)])]); return cmpChart(keys.map(k => [k, a[k] || 0, b[k] || 0])); };
   const stCmp = () => cmpChart(STATES.map(([n], k) => [n, P.filter(r => r.state === k).length, C.filter(r => r.state === k).length]));
-  const nextCmp = () => { const a = countBy(P.filter(r => r.state < 2), 'next'), b = countBy(C.filter(r => r.state < 2), 'next'); const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort((x, y) => ((b[y] || 0) + (a[y] || 0)) - ((b[x] || 0) + (a[x] || 0))); return cmpChart(keys.map(k => [k, a[k] || 0, b[k] || 0])); };
+  const nextCmp = () => { const a = countBy(P.filter(r => r.state < 2), 'next'), b = countBy(C.filter(r => r.state < 2), 'next'); const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort((x, y) => nextRank(x) - nextRank(y) || ((b[y] || 0) + (a[y] || 0)) - ((b[x] || 0) + (a[x] || 0))); return cmpChart(keys.map(k => [k, a[k] || 0, b[k] || 0])); };
   const amtCmp = () => { if (!X.hasAmt) return '<div class="empty">전월 체납액 자료가 없습니다 (전월 통합데이터를 함께 넣으면 비교됩니다).</div>'; const a = {}, b = {}; P.forEach(r => a[r.cls] = (a[r.cls] || 0) + (+r.amt || 0)); C.forEach(r => b[r.cls] = (b[r.cls] || 0) + (+r.amt || 0)); const keys = clsOrder([...new Set([...Object.keys(a), ...Object.keys(b)])]); return cmpChart(keys.map(k => [k, a[k] || 0, b[k] || 0]), { fmt: wonU, unit: '' }); };
   const table = (head, rows) => `<div class="tw" style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px"><table class="mtx" style="width:100%"><tr>${head.map(h => `<th style="text-align:left">${h}</th>`).join('')}</tr>${rows.map(r => `<tr>${r.map(c => `<td style="text-align:left">${c}</td>`).join('')}</tr>`).join('')}</table></div>`;
   let html = '', later = [];
@@ -1857,6 +1909,7 @@ function renderMomTab() {
   }
   box.innerHTML = html;
   later.forEach(fn => fn());
+  raf2(() => growIn(box, 35));   // ver.19 모션
 }
 $('#flow').addEventListener('click', e => { const f = e.target.closest('.fl[data-seg]'); if (!f) return; MOM.seg = f.dataset.seg; if (location.hash !== '#mom') location.hash = '#mom'; else renderMomTab(); });
 $('#momSeg').addEventListener('click', e => { const b = e.target.closest('button[data-seg]'); if (!b) return; MOM.seg = b.dataset.seg; renderMomTab(); });
@@ -1950,7 +2003,7 @@ wireDrop('#dropA', '#pickA', '#msgA', loadResults);
 wireDrop('#dropB', '#pickB', '#msgB', loadRaw);
 (function () { const t = new Date(); const d = new Date(Date.UTC(t.getFullYear(), t.getMonth(), 0)); $('#dBase').value = d.toISOString().slice(0, 10); })();
 $('#dReset').addEventListener('click', () => { location.href = location.pathname; });
-$('#dSample').addEventListener('click', () => { LOADED = 'sample'; if (location.hash !== '#home') location.hash = '#home'; else route(); });
+$('#dSample').addEventListener('click', () => { LOADED = 'sample'; ANIM_GEN++; if (location.hash !== '#home') location.hash = '#home'; else route(); });
 renderStatic(); render(); route();
 </script>
 <!-- ver.18: 여현서 님 「보고서 만들기」 버튼 (dashboard/index_ver.15_report.html에서 그대로 옮김 · 로컬 보고서 생성기 dashboard/report_tool) -->
