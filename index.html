@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.22</title>
+<title>1팀 체납관리 홈 ver.23</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -270,8 +270,8 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
       <a href="#a01" data-v="a01"><span class="dot" style="background:var(--kim)"></span>① 데이터 통합<span class="who">김태경</span></a>
       <a href="#a02" data-v="a02"><span class="dot" style="background:var(--shin)"></span>② 대상자 분류<span class="who">신미림</span></a>
       <a href="#a05" data-v="a05"><span class="dot" style="background:var(--yeo)"></span>③ 월 결산 보고<span class="who">여현서</span></a>
-      <div class="cap">팀</div>
-      <a href="#team" data-v="team"><span class="dot"></span>팀 · 협업 규칙</a>
+      <div class="cap">설정</div>
+      <a href="#team" data-v="team"><span class="dot"></span>분류 기준값 설정</a>
     </nav>
     <div class="foot"><span class="badge" id="fbadge">데이터 없음</span><br>기준일 <span id="fbase"></span><br>LH AI Workflow 워크숍 1팀</div>
   </aside>
@@ -435,25 +435,9 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
 
       <!-- TEAM -->
       <section class="view" id="v-team">
-        <div class="grid g2">
-          <div class="card"><h3>팀원과 맡은 일</h3><p class="src">LH AI Workflow 워크숍 · 인천지역본부 전세임대팀</p>
-            <div class="mem" style="--c:var(--kim)"><b>김태경</b> <span class="role">· A01 데이터 통합</span><div class="role">원천 9종을 계약번호로 통합, 매칭 결과 검토</div><div class="links"><a class="lk" href="../데이터/체납관리_통합데이터_20261113.xlsx">통합데이터 Excel</a><a class="lk" href="../파이프라인/(최종)전세임대 체납관리 통합 PRD.pdf">통합 PRD</a></div></div>
-            <div class="mem" style="--c:var(--shin)"><b>신미림</b> <span class="role">· A02 대상자 분류 · A03 예외처리 · A04 조치사항</span><div class="role">분류 기준 관리, 분류도구(HTML · Python), 단계별 표본 검토</div><div class="links"><a class="lk" href="../팀원/신미림/체납관리_분류도구_ver.5.html">분류도구 ver.5 열기</a><a class="lk" href="../참고자료/A01~A05기준 및 필요추가정보_ver.3.txt">분류 기준 ver.3</a></div></div>
-            <div class="mem" style="--c:var(--yeo)"><b>여현서</b> <span class="role">· A05 월 결산 보고</span><div class="role">지표 계산, 도표, 보고서 초안과 검토</div><div class="links"><a class="lk" href="../팀원/여현서/A05_지표계산_202610(가상).xlsx">10월 지표계산</a><a class="lk" href="../팀원/여현서/A05_월결산보고서_202609(가상)_ver1.hwpx">9월 보고서(hwpx)</a></div></div>
-          </div>
-          <div class="card"><h3>협업 규칙</h3><p class="src">저장소 hyeonseo439/lh-workshop-migrated</p>
-            <ul class="rules">
-              <li>폴더 단위로 작업을 나눕니다: <code>팀원/김태경/</code>, <code>팀원/신미림/</code>, <code>팀원/여현서/</code>. 합의된 최종본은 <code>팀원/취합/</code>에 둡니다.</li>
-              <li><code>dashboard/</code>는 공용 홈페이지입니다. 각자 자기 폴더 안의 파일만 고쳐 충돌을 피하고, 공용 파일(루트, <code>dashboard/</code>, <code>데이터/</code>, <code>파이프라인/</code>)은 고치기 전에 서로 알립니다.</li>
-              <li>push 전에 <code>git pull</code>로 최신 상태를 받습니다.</li>
-              <li>기존 파일은 덮어쓰지 않고 이름에 <code>ver.N</code>을 붙여 새로 올립니다.</li>
-              <li>실제 체납 데이터나 개인정보는 올리지 않습니다. 가상 데이터만 씁니다.</li>
-            </ul>
-            <div class="note mt">이 페이지의 숫자는 <code>데이터/체납관리_통합데이터_20261113.xlsx</code>, <code>팀원/신미림/체납관리_기준값.json</code>, <code>팀원/여현서/A05_지표계산_202610(가상).xlsx</code>에서 뽑아 넣은 값입니다. 원본이 바뀌면 페이지를 다시 만들어야 합니다.</div>
-          </div>
-        </div>
+        <!-- ver.23: 팀원과 맡은 일 · 협업 규칙 카드는 삭제하고 이 탭은 「분류 기준값 설정」으로 씀 -->
         <!-- ver.22: 분류 기준값을 화면에서 바꿔 바로 다시 분류 -->
-        <div class="card mt" id="critCard"><h3>분류 기준값 바꿔 보기</h3>
+        <div class="card" id="critCard"><h3>분류 기준값 바꿔 보기</h3>
           <p class="src">숫자를 바꾸고 「이 기준으로 다시 분류」를 누르면 전체 현황 · 세대 목록 · 대상자 분류 · 전월 대비 추이가 바로 새 기준으로 다시 계산됩니다. <b>이 브라우저에서만 적용되고, 새로고침하면 기본값으로 돌아갑니다.</b> 팀 기본값을 바꾸려면 「기준값 파일로 받기」로 받은 json을 팀에서 합의해 <code>팀원/신미림/체납관리_기준값.json</code>에 반영하세요.</p>
           <div class="critf" id="critForm"></div>
           <div class="critbtns"><button class="more" id="critGo" type="button">이 기준으로 다시 분류</button><button class="more" id="critReset" type="button">기본값으로 되돌리기</button><button class="more" id="critSave" type="button">지금 값을 기본값으로 저장</button><button class="more" id="critTeam" type="button">팀 기본값으로 되돌리기</button><button class="more" id="critDl" type="button">기준값 파일로 받기 (json)</button></div>
@@ -475,7 +459,7 @@ const sido = g => g.includes('인천') ? '인천광역시' : '경기도';
 const STATES = [['누락 의심', '--s-miss'], ['관리필요', '--s-need'], ['익월 재검토', '--s-hold'], ['관리중', '--s-ok']];
 // ver.19: 최종분류 순서 (2026-11-20 신미림 요청) — 단기 → 중기 → 장기 → 제소 → 소송유예 → 생활안정지원 → 분과심의 → 분과심의 보류 → 강제집행 → 특수채권
 const CLS = ['단기체납자', '중기체납자', '장기체납자', '제소대상자', '소송유예자', '생활안정지원대상자', '분과심의 대상자', '분과심의 보류 대상자', '강제집행 대상자', '특수채권'];
-const TITLES = { home: ['전체 현황', ''], list: ['세대 목록', '10월 체납세대'], data: ['데이터 넣기', '새 Excel로 화면 바꾸기'], a01: ['① 데이터 통합', '김태경 · A01'], a02: ['② 대상자 분류', '신미림 · A02 ~ A04'], a05: ['③ 월 결산 보고', '여현서 · A05'], team: ['팀 · 협업 규칙', ''], mom: ['전월 대비 추이', '전월 → 이번 달 비교'] };
+const TITLES = { home: ['전체 현황', ''], list: ['세대 목록', '10월 체납세대'], data: ['데이터 넣기', '새 Excel로 화면 바꾸기'], a01: ['① 데이터 통합', '김태경 · A01'], a02: ['② 대상자 분류', '신미림 · A02 ~ A04'], a05: ['③ 월 결산 보고', '여현서 · A05'], team: ["분류 기준값 설정", "기준값을 바꿔 바로 다시 분류"], mom: ['전월 대비 추이', '전월 → 이번 달 비교'] };
 const F = { sido: '', gu: '', con: '' };
 const pass = (gu, con) => (!F.sido || sido(gu) === F.sido) && (!F.gu || gu === F.gu) && (!F.con || con === F.con);
 const filtered = () => !!(F.sido || F.gu || F.con);
@@ -1365,7 +1349,7 @@ async function loadRaw(fileList, assign, cached) {
   const crit = { ...D.crit, ...CRIT_BASE };   // ver.22: 기본값(팀 기본값 또는 이 브라우저에 저장한 기본값) → 넣은 json → 화면에서 바꾼 값 순서로 적용
   if (json) { let o; try { o = JSON.parse((await json.text()).replace(/^﻿/, '')); } catch (e) { throw new Error(`판단 기준값 파일(${json.name})의 형식이 잘못돼 읽지 못했습니다. 파일을 메모장으로 열어 쉼표·따옴표·괄호를 확인하거나, 이 파일을 빼고 다시 넣어 주세요.`); } for (const k of Object.keys(crit)) if (o[k] != null && o[k] !== '' && isFinite(+o[k])) crit[k] = +o[k]; }
   if (!cached) { CRIT_OVR = null; PREV_FILES = null; }   // ver.22: 새 파일을 넣으면 화면에서 바꾼 기준값·전월 자료는 지운다
-  if (CRIT_OVR) Object.assign(crit, CRIT_OVR);   // ver.22: 「팀 · 협업 규칙」에서 바꾼 기준값 우선
+  if (CRIT_OVR) Object.assign(crit, CRIT_OVR);   // ver.22: 「분류 기준값 설정」에서 바꾼 기준값 우선
   if (!(crit['단기체납_시작_개월'] < crit['중기체납_시작_개월'] && crit['중기체납_시작_개월'] < crit['장기체납_시작_개월'])) throw new Error('판단 기준값의 체납기간 구간이 맞지 않습니다(단기 < 중기 < 장기).');
   const bv = $('#dBase').value, baseDate = ENGINE.toDate(bv);
   if (!baseDate) throw new Error('기준일(월말 결산일)을 입력해 주세요.');
@@ -2039,7 +2023,7 @@ async function loadPrev(fileList) {
 }
 $('#momBtn').addEventListener('click', () => { MOM.on = !MOM.on; MOM.re = false; renderMom(); render(); });
 
-/* ===== ver.22: 「팀 · 협업 규칙」에서 분류 기준값을 바꿔 바로 다시 분류 =====
+/* ===== ver.22: 「분류 기준값 설정」에서 분류 기준값을 바꿔 바로 다시 분류 =====
    - 원본 9종: 넣어 둔 원본으로 ENGINE.run · 통합 실행 결과: 함께 넣은 통합데이터로 ENGINE.runInteg
    - 전월 자료를 넣어 두었으면 같은 기준으로 전월도 다시 분류 (전월 분류결과 파일은 파일 안의 분류를 그대로 씀)
    - 이 브라우저에서만 적용, 새로고침하거나 새 파일을 넣으면 기본값 */
