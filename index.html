@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.23</title>
+<title>1팀 체납관리 홈 ver.24</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -244,6 +244,20 @@ td.dc,th.dc{text-align:center;padding-left:4px;padding-right:4px}
 th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-width:56px;font-size:10.5px}
 /* ver.4: 세대 목록 요약(ver.2 모양) · 상세(ver.3 모양) 전환 */
 #v-list.list-sum .det-only{display:none}
+/* ver.24: 세대 목록 — 표 안에서 스크롤하고 머리글 줄 고정, 아래에 페이지 번호 */
+#v-list .tw{max-height:1000px;overflow:auto;border:1px solid var(--line2);border-radius:8px}   /* 스크롤 없이 약 30세대가 보이는 높이 */
+#v-list td{padding-top:5px;padding-bottom:5px}
+#v-list td .chip{padding-top:1px;padding-bottom:1px}
+#v-list th{z-index:2;box-shadow:inset 0 -1px 0 var(--line)}
+.pgbar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin-top:10px;font-size:12.5px;color:var(--ink2)}
+.pgbar select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 8px;margin:0 4px}
+.pginfo{color:var(--ink3);font-variant-numeric:tabular-nums}
+.pager{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.pager button{min-width:30px;height:30px;padding:0 8px;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:6px;cursor:pointer;font-variant-numeric:tabular-nums}
+.pager button:hover:not(:disabled){border-color:var(--ink3);color:var(--ink)}
+.pager button.on{background:var(--ink);color:var(--surface);border-color:var(--ink);font-weight:700}
+.pager button:disabled{opacity:.4;cursor:default}
+.pager .gap{padding:0 2px;color:var(--ink3)}
 /* ver.5: 데이터 넣기 */
 .drop{border:2px dashed var(--line);border-radius:10px;padding:22px 14px;text-align:center;color:var(--ink2);cursor:pointer;margin-top:10px;font-size:13px}
 .drop.over{border-color:var(--accent);color:var(--ink)}
@@ -389,8 +403,9 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
             <span class="cnt" id="tCnt"></span>
           </div>
           <div class="legend det-only"><span><i class="dt d2"></i>완료</span><span><i class="dt d1"></i>대상(아직 안 함)</span><span><i class="dt d0"></i>해당 없음</span><span style="color:var(--ink3)" id="dotSrc">· 오른쪽 조치 진행 열은 김태경 님 A01 통합데이터 기준</span></div>
-          <div class="tw"><table id="tbList"></table></div>
-          <button class="more" id="more" hidden>더 보기</button>
+          <div class="tw" id="tbWrap"><table id="tbList"></table></div>
+          <!-- ver.24: 한 페이지에 볼 세대 수(10~100)와 페이지 번호 -->
+          <div class="pgbar"><label>한 페이지에 <select id="pgSize"><option>10</option><option>20</option><option selected>30</option><option>40</option><option>50</option><option>60</option><option>70</option><option>80</option><option>90</option><option>100</option></select> 세대씩 보기</label><span class="pginfo" id="pgInfo"></span><div class="pager" id="pager"></div></div>
         </div>
         <p class="src" style="margin-top:10px;color:var(--ink3);font-size:12px">웹에 공개되는 페이지라 계약자 이름·주민번호·주소·연락처는 싣지 않았고 계약번호는 가운데를 가렸습니다.</p>
       </section>
@@ -627,13 +642,27 @@ function renderList() {
   let R = D.hh.filter(r => pass(r[1], r[2]) && (!c || r[5] === c) && (s === '' || r[6] === +s) && (!LX || LX.fn(r)) && (tt === '' || TERM[+tt][1](r)) && (!tc || r[9] === tc) && (!q || (r[0] + r[1] + r[5] + r[7]).includes(q)));
   R.sort((a, b) => (a[sortK] > b[sortK] ? 1 : a[sortK] < b[sortK] ? -1 : 0) * sortD);
   $('#tCnt').innerHTML = `${fmt(R.length)}세대` + (LX ? `<span class="xchip">${LX.label}<button type="button" id="xclr" title="이 조건 지우기">×</button></span>` : '');
-  const show = R.slice(0, listPage * 30);
+  // ver.24: 페이지 나누기 (한 페이지 PG_SIZE 세대, listPage = 지금 페이지 번호)
+  const pages = Math.max(1, Math.ceil(R.length / PG_SIZE)); listPage = Math.min(Math.max(1, listPage), pages);
+  const show = R.slice((listPage - 1) * PG_SIZE, listPage * PG_SIZE);
   $('#tbList').innerHTML = '<tr>' + LCOLS.map(([n, k, r]) => `<th class="s ${r ? 'r' : ''}" data-k="${k}">${n}${sortK === k ? (sortD > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('') + (det ? SHORT9.map(n => `<th class="dc">${n}</th>`).join('') : '') + '</tr>' + show.map(r => `<tr><td>${r[0]}</td><td>${r[1].replace(/^전세\((.+)\)$/, '$1')}</td><td>${r[2]}</td><td class="r">${r[3]}</td><td class="r">${fmt(r[4])}</td><td>${r[5]}</td><td><span class="chip"><i style="background:var(${STATES[r[6]][1]})"></i>${STATES[r[6]][0]}</span></td><td>${r[7]}</td><td>${r[8] || '<span style="color:var(--ink3)">기록 없음</span>'}</td>${det ? `<td class="r">${r[10] ? r[13] : '-'}</td>${dots(r)}` : ''}</tr>`).join('');
-  $('#more').hidden = show.length >= R.length; $('#more').textContent = `더 보기 (${fmt(R.length - show.length)}세대 남음)`;
+  renderPager(R.length, pages);
 }
+/* ver.24: 페이지 번호 — ‹ 1 … 4 5 [6] 7 8 … 17 › (현재 페이지 앞뒤 2개와 처음·끝) */
+let PG_SIZE = 30;
+function renderPager(total, pages) {
+  const from = total ? (listPage - 1) * PG_SIZE + 1 : 0, to = Math.min(total, listPage * PG_SIZE);
+  $('#pgInfo').textContent = total ? `${fmt(from)}–${fmt(to)} / ${fmt(total)}세대` : '';
+  const nums = [...new Set([1, pages, ...[-2, -1, 0, 1, 2].map(d => listPage + d)])].filter(n => n >= 1 && n <= pages).sort((a, b) => a - b);
+  let html = `<button type="button" data-p="${listPage - 1}" ${listPage <= 1 ? 'disabled' : ''} aria-label="이전 페이지">‹</button>`, prev = 0;
+  for (const n of nums) { if (n - prev > 1) html += '<span class="gap">…</span>'; html += `<button type="button" data-p="${n}" class="${n === listPage ? 'on' : ''}" ${n === listPage ? 'aria-current="page"' : ''}>${n}</button>`; prev = n; }
+  html += `<button type="button" data-p="${listPage + 1}" ${listPage >= pages ? 'disabled' : ''} aria-label="다음 페이지">›</button>`;
+  $('#pager').innerHTML = pages > 1 ? html : '';
+}
+$('#pager').addEventListener('click', e => { const b = e.target.closest('button[data-p]'); if (!b || b.disabled) return; listPage = +b.dataset.p; renderList(); $('#tbWrap').scrollTop = 0; });
+$('#pgSize').addEventListener('change', e => { PG_SIZE = +e.target.value || 30; listPage = 1; renderList(); $('#tbWrap').scrollTop = 0; });
 $('#tbList').addEventListener('click', e => { const th = e.target.closest('th.s'); if (!th) return; const k = +th.dataset.k; sortD = sortK === k ? -sortD : ((k >= 3 && k <= 4) || k === 13 ? -1 : 1); sortK = k; renderList(); });
 ['#q', '#tCls', '#tState', '#tTerm', '#tCur'].forEach(s => $(s).addEventListener('input', () => { listPage = 1; renderList(); }));
-$('#more').addEventListener('click', () => { listPage++; renderList(); });
 $('#tMode').addEventListener('click', e => { const b = e.target.closest('button[data-m]'); if (b && b.dataset.m !== MODE) setMode(b.dataset.m); });
 $('#tCnt').addEventListener('click', e => { if (e.target.id === 'xclr') { LX = null; listPage = 1; renderList(); } });
 $('#kpis').addEventListener('click', e => { const k = e.target.closest('.kpi.clk'); if (k) goList(KGO[+k.dataset.i]); });
