@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.19</title>
+<title>1팀 체납관리 홈 ver.20</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -13,7 +13,7 @@
   --ink:#16181b; --ink2:#52514e; --ink3:#85837c;
   --side:#14232b; --side-ink:#c9d6d8; --side-mute:#7f9499; --side-on:#1f3a44; --accent:#19b394;
   --s-miss:#d03b3b; --s-need:#2a78d6; --s-hold:#eda100; --s-ok:#1baf7a;
-  --bar:#2a78d6; --bar-soft:#b7d3f6; --track:#eeece6;
+  --bar:#2a78d6; --bar-soft:#b7d3f6; --mom-prev:#9bd35a; --track:#eeece6;
   --kim:#2a78d6; --shin:#1baf7a; --yeo:#6250d6;
   --shadow:0 1px 2px rgba(20,35,43,.05),0 6px 20px rgba(20,35,43,.05);
 }
@@ -24,7 +24,7 @@
     --ink:#f0efec; --ink2:#c3c2b7; --ink3:#8d8c84;
     --side:#0c1519; --side-ink:#c9d6d8; --side-mute:#6f858a; --side-on:#183037; --accent:#22c7a5;
     --s-miss:#e66767; --s-need:#3987e5; --s-hold:#c98500; --s-ok:#199e70;
-    --bar:#3987e5; --bar-soft:#184f95; --track:#262724;
+    --bar:#3987e5; --bar-soft:#184f95; --mom-prev:#8fc94a; --track:#262724;
     --kim:#3987e5; --shin:#199e70; --yeo:#9085e9;
     --shadow:none;
   }
@@ -206,6 +206,16 @@ code{background:var(--line2);border-radius:5px;padding:1px 5px;font-size:12px}
 @keyframes mFade{from{opacity:0}to{opacity:1}}
 .flow .fl{animation:mIn .45s ease-out both;animation-delay:calc(var(--i,0) * 90ms)}
 .anim-d,.kpi .d{animation:mFade .4s ease-out .5s both}
+/* ver.20: 전월 대비 세로 비교 그래프 */
+.vcmp{overflow-x:auto;padding-bottom:2px}
+.vplot{display:flex;gap:10px;align-items:flex-start;min-width:min-content}
+.vg{flex:1 1 0;min-width:62px;max-width:120px;display:flex;flex-direction:column;align-items:center}
+.vcols{height:170px;width:100%;display:flex;gap:4px;align-items:flex-end;justify-content:center;border-bottom:1px solid var(--line)}
+.vcols i{display:block;width:min(26px,40%);min-height:2px;border-radius:4px 4px 0 0;transition:height .55s cubic-bezier(.2,.7,.2,1)}
+.vl{font-size:11.5px;color:var(--ink2);text-align:center;margin-top:6px;line-height:1.3;word-break:keep-all;overflow-wrap:anywhere;min-height:30px}
+.vn{font-size:11px;color:var(--ink3);text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}.vn b{color:var(--ink)}
+.vd{font-size:11px;color:var(--ink2);text-align:center;white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.vcols i{transition:none}}
 @media (prefers-reduced-motion:reduce){.sg,.cmp .cb i{transition:none}.flow .fl,.anim-d,.kpi .d{animation:none}}
 .sg.clk:hover{filter:brightness(1.12);box-shadow:inset 0 0 0 2px var(--ink)}
 .lb.clk:hover,.legend span.clk:hover,.kpi.clk:hover .l{text-decoration:underline}
@@ -461,11 +471,12 @@ const RM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)'
 let ANIM_GEN = 1;   // 새 데이터를 넣을 때마다 1씩 늘림 → 각 화면을 처음 열 때 한 번 모션
 const raf2 = fn => requestAnimationFrame(() => requestAnimationFrame(fn));
 function growIn(root, stagger = 28) {
-  const els = [...root.querySelectorAll('[data-w]')];
-  if (RM) { els.forEach(e => { e.style.width = e.dataset.w; }); return; }
-  els.forEach(e => { e.style.transition = 'none'; e.style.width = '0%'; });
+  // data-w = 가로 막대 길이, data-h = 세로 막대 높이 (ver.20 세로 비교 그래프)
+  const els = [...root.querySelectorAll('[data-w],[data-h]')], prop = e => e.dataset.h != null ? 'height' : 'width', goal = e => e.dataset.h != null ? e.dataset.h : e.dataset.w;
+  if (RM) { els.forEach(e => { e.style[prop(e)] = goal(e); }); return; }
+  els.forEach(e => { e.style.transition = 'none'; e.style[prop(e)] = '0%'; });
   void root.offsetWidth;
-  els.forEach(e => { e.style.transition = ''; e.style.transitionDelay = ((+e.dataset.row || 0) * stagger + (+e.dataset.lag || 0)) + 'ms'; e.style.width = e.dataset.w; });
+  els.forEach(e => { e.style.transition = ''; e.style.transitionDelay = ((+e.dataset.row || 0) * stagger + (+e.dataset.lag || 0)) + 'ms'; e.style[prop(e)] = goal(e); });
   setTimeout(() => els.forEach(e => { e.style.transitionDelay = ''; }), 1600);
 }
 function countUp(root) {
@@ -1786,23 +1797,25 @@ function renderMom() {
     const n = f[1] === '' ? '·' : kind === 'end' || kind === 'keep' ? fmt(f[1]) : (f[1] > 0 ? '+' : f[1] < 0 ? '−' : '') + fmt(Math.abs(f[1]));
     const a2 = f[2] == null ? '체납액 자료 없음' : (kind === 'end' ? '' : kind === 'keep' ? '금액 변동 ' : '') + (kind === 'end' ? '' : f[2] > 0 ? '+' : f[2] < 0 ? '−' : '') + won(Math.abs(f[2])) + '원';
     // ver.16: 흐름 칸을 누르면 「전월 대비 추이」 탭에서 해당 부분 도표를 보여 준다
-    const seg = i === 0 ? 'prev' : i === a.length - 1 ? 'cur' : kind === 'minus' ? 'gone' : kind === 'plus' ? 'new' : 'keep';
+    const seg = end ? 'all' : kind === 'minus' ? 'gone' : kind === 'plus' ? 'new' : 'keep';   // ver.20: 처음·마지막 칸(전월·이번 달 체납세대)은 「전월 대비 현황」
     return `<div class="fl clk ${end ? 'end' : ''}" style="--i:${i}" data-seg="${seg}" title="눌러서 「전월 대비 추이」 탭에서 도표 보기"><div class="l">${escH(String(f[0]).replace(/^\(±\)\s*/, ''))}</div><div class="v">${n}<small style="font-size:12px;font-weight:500;color:var(--ink3)"> 세대</small></div><div class="l">${a2}</div></div>`;
   }).join('');
   $('#momDone').innerHTML = `<p class="src" style="margin:0">${D.done.length ? `이번 달에 새로 완료한 조치(전월 대비)는 「③ 월 결산 보고」의 이번 달 수행 실적에서 볼 수 있습니다. ` : ''}${D.pbase ? `전월 기준일 ${escH(D.pbase)}` : ''}${MOM.overlap ? ` · 두 달 모두 있는 세대 ${fmt(MOM.overlap)}` : ''}</p>`;
 }
 /* ===== ver.16: 「전월 대비 추이」 결과 탭 — 흐름 칸(전월 체납세대 · 해소 · 신규 · 계속 체납 · 이번 달 체납세대)별 도표 ===== */
-const MOM_SEGS = () => [['prev', `${monLabel(D.pbase)} 체납세대`], ['gone', '해소 (이번 달에 빠짐)'], ['new', '신규 (새로 들어옴)'], ['keep', '두 달 계속 체납'], ['cur', `${monLabel(D.base)} 체납세대`]];
+// ver.20: 전월·이번 달 체납세대 버튼은 같은 비교 도표라 「전월 대비 현황」 하나로 합침
+const MOM_SEGS = () => [['all', '전월 대비 현황'], ['gone', '해소 (이번 달에 빠짐)'], ['new', '신규 (새로 들어옴)'], ['keep', '두 달 계속 체납']];
 // 두 달 비교 막대: rows = [[이름, 전월 값, 이번 달 값]]
 function cmpChart(rows, opt = {}) {
   const PM = monLabel(D.pbase), CM = monLabel(D.base), f = opt.fmt || fmt, u = opt.unit ?? '세대';
   const max = Math.max(1, ...rows.flatMap(r => [r[1] || 0, r[2] || 0]));
   if (!rows.some(r => r[1] || r[2])) return '<div class="empty">해당하는 세대가 없습니다.</div>';
-  // ver.19 모션: 전월 막대가 먼저, 이번 달 막대가 이어서 자라나고 증감 표시는 뒤에 나타남 (renderMomTab 끝에서 growIn)
-  return `<div class="cmpleg"><span><i style="background:var(--bar-soft)"></i>${PM}</span><span><i style="background:var(--bar)"></i>${CM}</span></div><div class="cmp">` + rows.map(([l, a, b], i) => {
-    const d = (b || 0) - (a || 0), ds = d ? `${d > 0 ? '▲' : '▼'} ${f(Math.abs(d))}` : '같음', wa = `${(a || 0) / max * 100}%`, wb = `${(b || 0) / max * 100}%`;
-    return `<div class="cr"><div class="cl" title="${escH(l)}">${escH(l)}</div><div class="cb"><i style="width:${RM ? wa : '0%'};background:var(--bar-soft)" data-w="${wa}" data-row="${i}" data-lag="0" data-tip="<b>${escH(l)}</b><br>${PM} ${f(a || 0)}${u}"></i><i style="width:${RM ? wb : '0%'};background:var(--bar)" data-w="${wb}" data-row="${i}" data-lag="180" data-tip="<b>${escH(l)}</b><br>${CM} ${f(b || 0)}${u}"></i></div><div class="cv">${f(a || 0)} → <b>${f(b || 0)}</b><br><small class="anim-d">${ds}</small></div></div>`;
-  }).join('') + '</div>';
+  // ver.20: 세로 막대 — 항목마다 전월(연한색)·이번 달(진한색) 두 막대를 나란히, 아래에 항목 이름 · 전월 → 이번 달 · 증감
+  // 모션: 전월 막대가 먼저, 이번 달 막대가 이어서 위로 자라나고 증감 표시는 뒤에 나타남 (renderMomTab 끝에서 growIn)
+  return `<div class="cmpleg"><span><i style="background:var(--mom-prev)"></i>${PM}</span><span><i style="background:var(--bar)"></i>${CM}</span></div><div class="vcmp"><div class="vplot">` + rows.map(([l, a, b], i) => {
+    const d = (b || 0) - (a || 0), ds = d ? `${d > 0 ? '▲' : '▼'} ${f(Math.abs(d))}` : '같음', ha = `${(a || 0) / max * 100}%`, hb = `${(b || 0) / max * 100}%`;
+    return `<div class="vg"><div class="vcols"><i style="height:${RM ? ha : '0%'};background:var(--mom-prev)" data-h="${ha}" data-row="${i}" data-lag="0" data-tip="<b>${escH(l)}</b><br>${PM} ${f(a || 0)}${u}"></i><i style="height:${RM ? hb : '0%'};background:var(--bar)" data-h="${hb}" data-row="${i}" data-lag="180" data-tip="<b>${escH(l)}</b><br>${CM} ${f(b || 0)}${u}"></i></div><div class="vl" title="${escH(l)}">${escH(l)}</div><div class="vn">${f(a || 0)}<br>→ <b>${f(b || 0)}</b></div><div class="vd anim-d ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${ds}</div></div>`;
+  }).join('') + '</div></div>';
 }
 const countBy = (arr, key) => { const o = {}; arr.forEach(r => { const k = typeof key === 'function' ? key(r) : r[key]; if (k != null && k !== '') o[k] = (o[k] || 0) + 1; }); return o; };
 const clsOrder = keys => [...CLS_ORDER.filter(c => keys.includes(c)), ...keys.filter(c => !CLS_ORDER.includes(c))];
@@ -1818,16 +1831,15 @@ function renderMomSample(seg, PM, CM, card) {
   const flowRows = (D.flow || []).map((f, i, a) => ({ label: String(f[0]), n: f[1], amt: f[2], i, last: i === a.length - 1 }));
   const bar = (id, items, color) => { later.push(() => bars('#' + id, items.map(([l, v, tip]) => ({ label: l, segs: [{ v, color, name: '세대', tip }] })), { lw: 190 })); return `<div class="bars" id="${id}"></div>`; };
   let html = '';
-  if (seg === 'prev' || seg === 'cur') {
-    const isPrev = seg === 'prev', v = k => P[k] ? P[k][isPrev ? 0 : 1] : null, o = k => P[k] ? P[k][isPrev ? 1 : 0] : null;
+  if (seg === 'all') {   // ver.20: 전월·이번 달을 「전월 대비 현황」 하나로 (두 달 값을 나란히 + 증감)
     const S = [['체납세대', '체납세대 수', fmt, '세대'], ['체납금액', '체납금액 (총액)', wonU, ''], ['평균 체납개월', '평균 체납개월', x => (+x).toFixed(1), '개월'], ['세대당 평균 체납액', '세대당 평균 체납액', wonU, '']];
-    html += stat(S.filter(s => v(s[1]) != null).map(([l, k, f, u]) => [`${isPrev ? PM : CM} ${l}`, f(v(k)) + u, isPrev ? `${CM}에는 ${f(o(k))}${u}` : dlt(P[k][0], P[k][1], f, u)]));
+    html += stat(S.filter(s => P[s[1]]).map(([l, k, f, u]) => [`${l} ${PM} → ${CM}`, `${f(P[k][0])} → ${f(P[k][1])}${u}`, dlt(P[k][0], P[k][1], f, u)]));
     const curC = countBy(H, 5), keys = clsOrder([...new Set([...Object.keys(D.prevCls || {}), ...Object.keys(curC)])]);
     html += card('최종분류별 세대', `${PM}과 ${CM} 비교 · 오른쪽은 ${PM} → ${CM} (증감)`, cmpChart(keys.map(k => [k, (D.prevCls || {})[k] || 0, curC[k] || 0])));
     const miss = k => P[k] || [0, 0], m0 = miss('그중 누락 의심(방치)'), need = miss('관리필요세대');
     const stRows = [['누락 의심', m0[0], H.filter(r => r[6] === 0).length], ['관리필요(누락 제외)', need[0] - m0[0], H.filter(r => r[6] === 1).length], ['익월 재검토', miss('예외분류(익월 재검토) 세대')[0], H.filter(r => r[6] === 2).length], ['관리중', miss('관리중 세대')[0], H.filter(r => r[6] === 3).length]];
     const nb = countBy(H.filter(r => r[6] < 2), 7), na = D.prevNext || {}, nk = [...new Set([...Object.keys(na), ...Object.keys(nb)])].sort((x, y) => nextRank(x) - nextRank(y) || ((nb[y] || 0) + (na[y] || 0)) - ((nb[x] || 0) + (na[x] || 0)));
-    html += `<div class="grid g2">` + card('관리 상태별 세대', '누락 의심 · 관리필요 · 익월 재검토 · 관리중', cmpChart(stRows)) + card('다음에 할 조치 (관리필요 세대)', '누락 의심 + 관리필요 세대의 다음 할 일', cmpChart(nk.map(k => [k, na[k] || 0, nb[k] || 0]))) + `</div>`;
+    html += card('관리 상태별 세대', '누락 의심 · 관리필요 · 익월 재검토 · 관리중', cmpChart(stRows)) + card('다음에 할 조치 (관리필요 세대)', '누락 의심 + 관리필요 세대의 다음 할 일', cmpChart(nk.map(k => [k, na[k] || 0, nb[k] || 0])));   // ver.20: 세로 그래프는 항목이 많아 가로 전체 폭 사용
     const grp = [['경기도', '시도: 경기도 세대'], ['인천광역시', '시도: 인천광역시 세대'], ['계약', '계약자'], ['해약', '해약자'], ['최근 3개월에 납부한 세대', '최근 3개월 납부 세대']].filter(([, k]) => P[k]);
     if (grp.length) html += card('지역 · 계약 구분 · 납부 세대', '', cmpChart(grp.map(([l, k]) => [l, P[k][0], P[k][1]])));
     const amt = [['원금', '원금'], ['연체료', '연체료'], ['체납금액 (총액)', '체납금액 (총액)']].filter(([, k]) => P[k]);
@@ -1860,7 +1872,8 @@ function renderMomTab() {
     box.innerHTML = `<div class="card"><p class="empty" style="margin:0 0 10px">전월 자료가 아직 없습니다. 「전체 현황」 맨 위의 「전월 대비 추이 보기」를 눌러 전월 자료를 넣으면 여기에서 도표로 볼 수 있습니다.</p><a class="more" href="#home">전체 현황으로 가기</a></div>`;
     return;
   }
-  const PM = monLabel(D.pbase), CM = monLabel(D.base), X = MOM.detail, seg = MOM.seg || 'prev';
+  if (!MOM.seg || MOM.seg === 'prev' || MOM.seg === 'cur') MOM.seg = 'all';   // ver.20: 예전 버튼 이름 정리
+  const PM = monLabel(D.pbase), CM = monLabel(D.base), X = MOM.detail, seg = MOM.seg;
   segBox.innerHTML = MOM_SEGS().map(([k, l]) => `<button type="button" data-seg="${k}" class="${k === seg ? 'on' : ''}">${escH(l)}</button>`).join('');
   lead.innerHTML = `<b>${PM} → ${CM}</b> 전월 대비 추이입니다. 위 버튼이나 「전체 현황」의 흐름 칸을 누르면 그 부분의 도표를 봅니다. 전체 기준(필터와 무관) · 전월 자료: ${escH(MOM.src || '')}`;
   const card = (t, s, body) => `<div class="card mt"><h3>${t}</h3>${s ? `<p class="src">${s}</p>` : ''}${body}</div>`;
@@ -1874,13 +1887,12 @@ function renderMomTab() {
   const table = (head, rows) => `<div class="tw" style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px"><table class="mtx" style="width:100%"><tr>${head.map(h => `<th style="text-align:left">${h}</th>`).join('')}</tr>${rows.map(r => `<tr>${r.map(c => `<td style="text-align:left">${c}</td>`).join('')}</tr>`).join('')}</table></div>`;
   let html = '', later = [];
   const barsLater = (id, obj, color = '--bar') => { const keys = clsOrder(Object.keys(obj)); later.push(() => bars('#' + id, keys.map(k => ({ label: k, segs: [{ v: obj[k], color, name: '세대' }] })), { lw: 150 })); return `<div class="bars" id="${id}"></div>`; };
-  if (seg === 'prev' || seg === 'cur') {
-    const isPrev = seg === 'prev', goneN = X.gone.length, neuN = X.neuIds.size, keepN = X.bothIds.size;
-    html += stat(isPrev
-      ? [[`${PM} 체납세대`, fmt(P.length) + '세대'], [`이번 달에도 체납`, fmt(keepN) + '세대'], ['이번 달에 해소', fmt(goneN) + '세대'], [`${PM} 체납액`, X.hasAmt ? wonU(sumA(P)) : '자료 없음']]
-      : [[`${CM} 체납세대`, fmt(C.length) + '세대'], [`${PM}부터 계속 체납`, fmt(keepN) + '세대'], ['이번 달 신규', fmt(neuN) + '세대'], [`${CM} 체납액`, wonU(sumA(C))]]);
+  if (seg === 'all') {   // ver.20: 전월·이번 달 체납세대를 「전월 대비 현황」 하나로 합침 (두 달 요약을 나란히)
+    const goneN = X.gone.length, neuN = X.neuIds.size, keepN = X.bothIds.size, dN = C.length - P.length;
+    html += stat([[`체납세대 ${PM} → ${CM}`, `${fmt(P.length)} → ${fmt(C.length)}세대`], ['증감', dN ? `${dN > 0 ? '▲' : '▼'} ${fmt(Math.abs(dN))}세대` : '같음'], ['계속 · 해소 · 신규', `${fmt(keepN)} · ${fmt(goneN)} · ${fmt(neuN)}세대`],
+      [`체납액 ${PM} → ${CM}`, X.hasAmt ? `${wonU(sumA(P))} → ${wonU(sumA(C))}` : `자료 없음 → ${wonU(sumA(C))}`]]);
     html += card('최종분류별 세대', `${PM}과 ${CM} 비교 · 오른쪽은 ${PM} → ${CM} (증감)`, clsCmp());
-    html += `<div class="grid g2">` + card('관리 상태별 세대', '누락 의심 · 관리필요 · 익월 재검토 · 관리중', stCmp()) + card('다음에 할 조치 (관리필요 세대)', '누락 의심 + 관리필요 세대의 다음 할 일', nextCmp()) + `</div>`;
+    html += card('관리 상태별 세대', '누락 의심 · 관리필요 · 익월 재검토 · 관리중', stCmp()) + card('다음에 할 조치 (관리필요 세대)', '누락 의심 + 관리필요 세대의 다음 할 일', nextCmp());   // ver.20: 세로 그래프는 항목이 많아 가로 전체 폭 사용
     html += card('최종분류별 체납액', '', amtCmp());
   } else if (seg === 'gone') {
     const G = X.gone;
@@ -1945,7 +1957,7 @@ function buildMom(prevRows, pbase, src, opt = {}) {
   Object.assign(D, { prev, flow, prevCls, prevNext, done, pbase });
   // ver.16: 「전월 대비 추이」 탭 도표용 세대별 자료 (화면에서만 씀)
   const curX = D.hh.map((r, i) => ({ id: CUR_IDS[i], state: r[6], amt: r[4], cls: r[5], next: r[7], gu: r[1], con: r[2] }));
-  MOM = { on: true, src, re: false, overlap: both.length, approx: !!opt.approx, seg: 'prev',
+  MOM = { on: true, src, re: false, overlap: both.length, approx: !!opt.approx, seg: 'all',
     detail: { prevRows, cur: curX, pm, cm: new Map(curX.map(c => [c.id, c])), hasAmt, gone, neuIds: new Set(neu.map(c => c.id)), bothIds: new Set(both.map(c => c.id)) } };
   renderStatic(); render();
   return `${PM} 자료로 비교했습니다 — 두 달 모두 있는 세대 ${fmt(both.length)} · 해소 ${fmt(gone.length)} · 신규 ${fmt(neu.length)}${hasAmt ? '' : ' (체납액은 통합데이터가 없어 비교하지 않음)'}`;
