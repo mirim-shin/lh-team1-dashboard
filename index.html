@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1팀 체납관리 홈 ver.20</title>
+<title>1팀 체납관리 홈 ver.21</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -302,7 +302,7 @@ th.dc{white-space:normal;word-break:keep-all;line-height:1.2;min-width:46px;max-
           </div>
         </div>
         <div class="grid g6 mt" id="kpis"></div>
-        <div class="grid g4 mt" id="kpis2"></div>
+        <div class="grid mt" id="kpis2" style="grid-template-columns:repeat(2,1fr)"></div>
         <div class="grid g2 mt">
           <div class="card"><h3>최종분류별 관리 상태</h3><p class="src">세대 수 · 신미림 분류 기준을 여현서 10월 지표가 이어받은 결과</p><div class="legend" id="lgState"></div><div class="bars" id="chCls"></div></div>
           <div class="card"><h3>다음에 할 조치</h3><p class="src">관리필요 세대의 다음 할 일 · 빨강은 2개월 넘게 진행이 없는 누락 의심</p><div class="bars" id="chNextHome"></div></div>
@@ -552,6 +552,7 @@ function render() {
   const K2 = [['평균 체납기간', avgM.toFixed(1), '개월', '체납개월 평균', null], ['1건 평균 체납액', won(H.length ? sum / H.length : 0), '원', '체납액 ÷ 세대 수', null],
     ['소송 단계 진입', fmt(H.filter(LIT).length), '세대', '제소의뢰까지 완료', { lx: { label: '소송 단계 진입(제소의뢰 이후)', fn: LIT } }],
     ['아직 조치 전', fmt(H.filter(NOACT).length), '세대', '완료한 조치 단계 없음', { lx: { label: '아직 조치 전', fn: NOACT } }]];
+  K2.splice(2);   // ver.21: 「소송 단계 진입」·「아직 조치 전」 카드는 전체 현황에서 숨김 (2026-11-20 신미림 요청 · 다시 보이려면 이 줄을 지움)
   KGO2 = K2.map(k => k[4]);
   $('#kpis2').innerHTML = K2.map((k, i) => `<div class="kpi${k[4] ? ' clk' : ''}" data-j="${i}"${k[4] ? ' title="눌러서 세대 목록 보기"' : ''}><div class="l">${k[0]}</div><div class="v">${k[1]}<small>${k[2]}</small></div><div class="d">${k[3]}</div></div>`).join('');
   /* classification */
